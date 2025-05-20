@@ -1,8 +1,9 @@
-from dash import Dash, html, dcc, Input, Output, callback, dash_table, State
+from dash import Dash, html, dcc, Input, Output, State, callback, dash_table, no_update
 import dash_bio as dashbio
 import sqlite3
 import os.path
 import pandas as pd
+from dash import ctx
 
 # Create a Dash app with external stylesheets for responsive design and fonts
 app = Dash(
@@ -206,13 +207,13 @@ def create_uconn_header():
                 style={'height': '54px', 'marginRight': '18px', 'borderRadius': '50%', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
             ),
             html.Div([
-                html.H1('Genomic Browser', style={
+                html.H1('OFC SV Browser', style={
                     **uconn_styles['title'],
                     'margin': 0,
                     'padding': 0,
                     'color': UCONN_WHITE
                 }),
-                html.P('UConn Research Tool', style={
+                html.P('Browsing tool for Orofacial Cleft Structural Variations', style={
                     'margin': 0,
                     'fontSize': '14px',
                     'color': UCONN_WHITE
@@ -233,6 +234,22 @@ def create_uconn_header():
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
                 dcc.Tab(label='Table', value='/table',
+                        style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                        selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                ),
+                dcc.Tab(label='Image 1', value='/image1',
+                        style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                        selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                ),
+                dcc.Tab(label='Image 2', value='/image2',
+                        style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                        selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                ),
+                dcc.Tab(label='Image 3', value='/image3',
+                        style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                        selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                ),
+                dcc.Tab(label='Image 4', value='/image4',
                         style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
@@ -285,7 +302,6 @@ def load_table_data():
         return pd.DataFrame()
 
 # Table page layout
-
 def table_page():
     df = load_table_data()
     if df.empty:
@@ -293,20 +309,33 @@ def table_page():
     return html.Div([
         html.H2('Table Data', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
         dash_table.DataTable(
+            id='gene-table',
             data=df.to_dict('records'),
             columns=[{"name": i, "id": i} for i in df.columns],
             style_table={'overflowX': 'auto'},
             style_cell={'textAlign': 'left', 'padding': '5px'},
             style_header={'backgroundColor': UCONN_LIGHT_BLUE, 'fontWeight': 'bold'},
-            page_size=20
+            page_size=20,
+            # Remove row_selectable to eliminate checkboxes but keep row selection capability
+            selected_rows=[],
         )
     ], style=uconn_styles['content'])
 
 # Main genome browser page layout
 
-def genome_browser_page():
-    # Fix: Dropdown expects options to be a list of dicts with 'label' and 'value', and None is not a valid value for value
+def genome_browser_page(selected_gene=None):
     dropdown_options = [{'label': 'Select a chromosome...', 'value': ''}] + HOSTED_GENOME_DICT
+    chrom = ''
+    locus = ''
+    if selected_gene:
+        # selected_gene is a dict with keys matching the gene table columns
+        chrom = selected_gene.get('chrom', '')
+        x1 = selected_gene.get('x1', '')
+        x2 = selected_gene.get('x2', '')
+        if chrom and x1 and x2:
+            print(f"Setting locus to: {chrom}:{x1}-{x2}")
+            locus = f"{chrom}:{x1}-{x2}"
+    
     return html.Div([
         html.Div([
             html.Div([
@@ -320,7 +349,7 @@ def genome_browser_page():
                 dcc.Dropdown(
                     id='default-igv-genome-select',
                     options=dropdown_options,
-                    value='',
+                    value=chrom,
                     placeholder='Select a chromosome...',
                     style=uconn_styles['dropdown']
                 ),
@@ -331,12 +360,20 @@ def genome_browser_page():
                 color=UCONN_NAVY,
                 style=uconn_styles['loading']
             ),
+            html.Div([
+                html.P(f"Selected gene locus: {locus if locus else 'None'}", 
+                      style={'fontSize': '14px', 'fontStyle': 'italic', 'color': UCONN_NAVY}) 
+                if selected_gene else ''
+            ], style={'marginBottom': '10px'}),
             html.Div(
                 id='db-status',
                 children=check_database_connection('/data/cellvar.db/cellvar.db'),
                 style=uconn_styles['statusBar']
             )
-        ], style=uconn_styles['content'])
+        ], style=uconn_styles['content']),
+        
+        # Hidden store to keep track of gene locus
+        dcc.Store(id='current-locus', data=locus)
     ], style={'maxWidth': '1200px', 'margin': '0 auto', 'padding': '0 20px'})
 
 # Summary page layout
@@ -349,22 +386,72 @@ def summary_page():
         html.P("Currently single nucleotide variation (SNV) analysis in syndromic and non-syndromic OFC has found functional impairments in genes such as IRF6, BMP4, MAPK3, etc. However, considering that Structural Variations (SVS) account for more total base-pair variation in human genomes than SNVs, we argue that this topic is an important and missing component of this Kids First project. Exploring the role of SVS in the manifestation of the OFC phenotype will require a search beyond gene regions, since intergenic SVS can cause impairment to normal enhancers and transcription factors. We will explore three main SV types: deletion, duplication and inversions by looking for common and individual SV alleles that differ from the parents. We will also look at the OFC associated genes along with the related transcription factors, paralogs and associated intergenic regions to fully characterize potentially causative SVs. Using a set of preidentified 39 gene loci including IRF6, we will closely survey the 244 triads and use a healthy human cohort to filter the results (1000 Genome Project Phase 3 study, 2504 samples). This analysis will complement the SNV analysis for this data that has already been completed and will provide additional context for the total genomic landscape. We will disseminate our work to the scientific community and compare our results with previous copy number variation (CNV) literature and share the SV triad workflows we develop to enable a similar analysis on other Gabriella Miller Kids First Pediatric Research Program (Kids First) datasets.", style={'fontSize': '17px', 'marginBottom': '18px', 'lineHeight': '1.7'}),
     ], style={**uconn_styles['content'], 'maxWidth': '900px', 'margin': '40px auto 0 auto'})
 
+# Image page layouts
+def image1_page():
+    return html.Div([
+        html.H2('Image 1', style={'color': UCONN_NAVY, 'marginBottom': '18px', 'fontWeight': 'bold'}),
+        html.Img(
+            src='/assets/image1.png',
+            style={'width': '100%', 'maxWidth': '800px', 'display': 'block', 'margin': '0 auto'}
+        ),
+    ], style={**uconn_styles['content'], 'maxWidth': '900px', 'margin': '40px auto 0 auto'})
+
+def image2_page():
+    return html.Div([
+        html.H2('Image 2', style={'color': UCONN_NAVY, 'marginBottom': '18px', 'fontWeight': 'bold'}),
+        html.Img(
+            src='/assets/image2.png',
+            style={'width': '100%', 'maxWidth': '800px', 'display': 'block', 'margin': '0 auto'}
+        ),
+    ], style={**uconn_styles['content'], 'maxWidth': '900px', 'margin': '40px auto 0 auto'})
+
+def image3_page():
+    return html.Div([
+        html.H2('Image 3', style={'color': UCONN_NAVY, 'marginBottom': '18px', 'fontWeight': 'bold'}),
+        html.Img(
+            src='/assets/image3.png',
+            style={'width': '100%', 'maxWidth': '800px', 'display': 'block', 'margin': '0 auto'}
+        ),
+    ], style={**uconn_styles['content'], 'maxWidth': '900px', 'margin': '40px auto 0 auto'})
+
+def image4_page():
+    return html.Div([
+        html.H2('Image 4', style={'color': UCONN_NAVY, 'marginBottom': '18px', 'fontWeight': 'bold'}),
+        html.Img(
+            src='/assets/image4.png',
+            style={'width': '100%', 'maxWidth': '800px', 'display': 'block', 'margin': '0 auto'}
+        ),
+    ], style={**uconn_styles['content'], 'maxWidth': '900px', 'margin': '40px auto 0 auto'})
+
 # Updated layout with header and tabs, no sidebar
 def layout_with_tabs():
     return html.Div([
         create_uconn_header(),
         dcc.Location(id='url', refresh=False),
+        dcc.Store(id='selected-gene', data=None),  # Add this missing Store component
         html.Div(id='page-content'),
         create_uconn_footer()
     ], style=uconn_styles['page'])
 app.layout = layout_with_tabs
 
+# Callback to update the URL when a tab is clicked
+@callback(
+    Output('url', 'pathname', allow_duplicate=True),
+    Output('selected-gene', 'data', allow_duplicate=True),
+    Input('main-tabs', 'value'),
+    prevent_initial_call=True
+)
+def update_url_from_tab(tab_value):
+    # When using tab navigation, clear any previously selected gene
+    return tab_value, None
+
 # Return the IGV component with the selected genome.
 @callback(
     Output('default-igv-container', 'children'),
-    Input('default-igv-genome-select', 'value')
+    Input('default-igv-genome-select', 'value'),
+    State('current-locus', 'data')
 )
-def return_igv(chrom):
+def return_igv(chrom, locus):
     if not chrom:
         return html.Div(
             "Please select a chromosome from the dropdown",
@@ -374,13 +461,17 @@ def return_igv(chrom):
     # Get tracks for selected chromosome
     tracks = get_tracks_for_genome('/data/cellvar.db/cellvar.db', chrom)
     
+    # Set view location - use full locus if available, otherwise default to first 1Mb
+    view_locus = locus if locus and locus.startswith(f"{chrom}:") else f"{chrom}:1-1000000"
+    print(f"Setting IGV view to: {view_locus}")
+    
     return html.Div([
         html.Div([
             html.H3(f"Viewing Chromosome: {chrom}", style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
             dashbio.Igv(
                 id='default-igv',
                 genome='hg38',  # Using hg38 as reference, adjust if needed
-                locus=f"{chrom}:1-1000000",  # Initial view of first 1Mb
+                locus=view_locus,
                 minimumBases=100,
                 tracks=tracks,
                 style={'width': '100%', 'height': '600px', 'border': f'1px solid {UCONN_LIGHT_BLUE}'}
@@ -391,23 +482,91 @@ def return_igv(chrom):
 # Page routing callback
 @callback(
     Output('page-content', 'children'),
-    Input('url', 'pathname')
+    Output('main-tabs', 'value'),
+    Input('url', 'pathname'),
+    State('selected-gene', 'data')
 )
-def display_page(pathname):
+def display_page(pathname, selected_gene):
+    # Track if we're coming from table selection vs tab navigation
+    from_table_selection = False
+    
+    # If a gene is selected and the URL is changing to the genome browser ('/')
+    if selected_gene and pathname == '/':
+        # Query the database for the gene details
+        db_path = '/data/cellvar.db/cellvar.db'
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            # Use 'Gene' column instead of 'id'
+            gene_id = selected_gene.get('Gene', '')
+            print(f"\n=== DISPLAY_PAGE DEBUG ===")
+            print(f"Selected gene: {gene_id}")
+            print(f"Full selected_gene data: {selected_gene}")
+            
+            # Query for gene coordinates
+            cursor.execute("SELECT id, chrom, x1, x2, length, strand FROM genes WHERE id = ?", (gene_id,))
+            result = cursor.fetchone()
+            print(f"Database query result: {result}")
+            conn.close()
+            
+            if result:
+                # Create a dictionary with gene details from database
+                gene_dict = {
+                    'id': result[0], 
+                    'chrom': result[1], 
+                    'x1': result[2], 
+                    'x2': result[3], 
+                    'length': result[4], 
+                    'strand': result[5]
+                }
+                from_table_selection = True
+                print(f"Redirecting to genome browser with gene: {gene_dict}")
+                return genome_browser_page(selected_gene=gene_dict), '/'
+            else:
+                print(f"No gene found with ID: {gene_id}")
+        except Exception as e:
+            print(f"Error loading gene from db: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Handle normal page routing
     if pathname == '/table':
-        return table_page()
+        return table_page(), '/table'
     if pathname == '/':
-        return genome_browser_page()
+        # When navigating directly via tab, don't pass any gene
+        return genome_browser_page(), '/'
+    if pathname == '/image1':
+        return image1_page(), '/image1'
+    if pathname == '/image2':
+        return image2_page(), '/image2'
+    if pathname == '/image3':
+        return image3_page(), '/image3'
+    if pathname == '/image4':
+        return image4_page(), '/image4'
     # Default and /summary
-    return summary_page()
+    return summary_page(), '/summary'
 
-# Add callback to update URL when tab is changed
+# Callback to handle gene table row selection
 @callback(
-    Output('url', 'pathname'),
-    Input('main-tabs', 'value')
+    Output('selected-gene', 'data'),
+    Output('url', 'pathname', allow_duplicate=True),
+    Input('gene-table', 'active_cell'),
+    State('gene-table', 'data'),
+    prevent_initial_call=True
 )
-def update_url_from_tab(tab_value):
-    return tab_value
+def store_selected_gene_and_redirect(active_cell, table_data):
+    if active_cell:
+        row = active_cell['row']
+        gene_row = table_data[row]
+        print("\n======= GENE TABLE CLICK DEBUG =======")
+        print(f"Selected row: {row}")
+        print(f"Row data: {gene_row}")
+        
+        # Simply store the selected gene data and redirect
+        # The database query happens in the display_page callback
+        return gene_row, '/'
+        
+    return no_update, no_update
 
 if __name__ == '__main__':
     app.run(debug=True, port=8070)
