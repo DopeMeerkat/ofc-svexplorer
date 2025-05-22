@@ -278,7 +278,7 @@ def create_uconn_footer():
     return html.Footer([
         html.Div([
             html.Img(
-                src='/assets/banner_footer.png',
+                src='/assets/banner_footer_kidsfirst.png',
                 style={'width': '100%', 'maxWidth': '400px', 'marginBottom': '10px'}
             ),
             html.P([
@@ -288,8 +288,8 @@ def create_uconn_footer():
                 html.A('Privacy Policy', href='#', style={'color': UCONN_NAVY, 'marginRight': '15px', 'textDecoration': 'none'}),
                 html.A('Terms of Use', href='#', style={'color': UCONN_NAVY, 'textDecoration': 'none'})
             ])
-        ])
-    ], style={**uconn_styles['footer'], 'backgroundColor': UCONN_WHITE, 'color': UCONN_NAVY, 'marginLeft': '240px'})
+        ], style={'textAlign': 'center', 'width': '100%'})
+    ], style={'backgroundColor': UCONN_WHITE, 'color': UCONN_NAVY, 'padding': '15px 0px', 'textAlign': 'center', 'fontSize': '12px', 'marginTop': '20px', 'width': '100%'})
 
 # Read the CSV table for the table page
 TABLE_CSV_PATH = 'assets/table.csv'
@@ -308,18 +308,77 @@ def table_page():
         return html.Div('No data found in table.csv', style={'padding': '30px', 'color': 'red'})
     return html.Div([
         html.H2('Table Data', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+        html.P('Click on any row to view the gene in the Genome Browser', 
+               style={'marginBottom': '15px', 'color': UCONN_NAVY, 'fontStyle': 'italic'}),
         dash_table.DataTable(
             id='gene-table',
             data=df.to_dict('records'),
             columns=[{"name": i, "id": i} for i in df.columns],
             style_table={'overflowX': 'auto'},
-            style_cell={'textAlign': 'left', 'padding': '5px'},
+            style_cell={
+                'textAlign': 'left', 
+                'padding': '5px',
+                'cursor': 'pointer'  # Add pointer cursor to indicate clickable rows
+            },
             style_header={'backgroundColor': UCONN_LIGHT_BLUE, 'fontWeight': 'bold'},
+            style_data_conditional=[
+                {
+                    'if': {'column_id': 'Gene'},
+                    'fontWeight': 'bold',
+                    'color': UCONN_NAVY
+                },
+                {
+                    'if': {'state': 'active'},  # When a cell is clicked
+                    'backgroundColor': UCONN_LIGHT_BLUE,
+                    'border': f'1px solid {UCONN_NAVY}'
+                }
+            ],
             page_size=20,
             # Remove row_selectable to eliminate checkboxes but keep row selection capability
             selected_rows=[],
         )
     ], style=uconn_styles['content'])
+
+# Function to search for genes in the database
+def search_genes(search_term):
+    """Search for genes in the database that match the search term"""
+    db_path = '/data/cellvar.db/cellvar.db'
+    if not os.path.exists(db_path):
+        print(f"Error: Database file {db_path} not found")
+        return []
+        
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        # Search for genes with a LIKE query to match partial names too
+        cursor.execute("""
+            SELECT id, chrom, x1, x2, length, strand 
+            FROM genes 
+            WHERE id LIKE ? 
+            ORDER BY id
+            LIMIT 30
+        """, (f'%{search_term}%',))
+        
+        results = cursor.fetchall()
+        conn.close()
+        
+        # Format results as a list of dictionaries
+        genes = []
+        for row in results:
+            genes.append({
+                'id': row[0],
+                'chrom': row[1],
+                'x1': row[2],
+                'x2': row[3],
+                'length': row[4],
+                'strand': row[5],
+                'label': f"{row[0]} ({row[1]}:{row[2]}-{row[3]})"  # Format for display
+            })
+            
+        return genes
+    except sqlite3.Error as e:
+        print(f"Database error when searching genes: {e}")
+        return []
 
 # Main genome browser page layout
 
@@ -342,6 +401,38 @@ def genome_browser_page(selected_gene=None):
                 html.H2('Interactive Genome Browser', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
                 html.P('Explore genomic data using this interactive visualization tool. Select a chromosome from the dropdown menu below to view the corresponding genomic tracks.', 
                       style={'fontSize': '16px', 'lineHeight': '1.5'})
+            ], style={'marginBottom': '30px'}),
+            html.Div([
+                html.H3('Search Genes', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
+                html.P('Enter a gene name to search and navigate directly to that location:', style={'marginBottom': '10px'}),
+                html.Div([
+                    dcc.Input(
+                        id='gene-search-input',
+                        type='text',
+                        placeholder='Enter gene name...',
+                        style={
+                            'width': '70%', 
+                            'padding': '8px',
+                            'borderRadius': '4px',
+                            'border': f'1px solid {UCONN_LIGHT_BLUE}',
+                            'marginRight': '10px'
+                        }
+                    ),
+                    html.Button(
+                        'Search', 
+                        id='gene-search-button', 
+                        n_clicks=0,
+                        style={
+                            'backgroundColor': UCONN_NAVY,
+                            'color': UCONN_WHITE,
+                            'border': 'none',
+                            'padding': '8px 15px',
+                            'borderRadius': '4px',
+                            'cursor': 'pointer'
+                        }
+                    )
+                ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '15px'}),
+                html.Div(id='gene-search-results', children=[]),
             ], style={'marginBottom': '30px'}),
             html.Div([
                 html.H3('Select Chromosome', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
@@ -431,7 +522,7 @@ def layout_with_tabs():
         dcc.Store(id='selected-gene', data=None),  # Add this missing Store component
         html.Div(id='page-content'),
         create_uconn_footer()
-    ], style=uconn_styles['page'])
+    ], style={**uconn_styles['page'], 'margin': '0', 'padding': '0'})
 app.layout = layout_with_tabs
 
 # Callback to update the URL when a tab is clicked
@@ -497,8 +588,15 @@ def display_page(pathname, selected_gene):
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            # Use 'Gene' column instead of 'id'
+            # Get the 'Gene' value from the selected_gene data
             gene_id = selected_gene.get('Gene', '')
+            
+            # Make sure we have a valid gene ID
+            if not gene_id:
+                print("ERROR: No valid gene ID found in selected_gene data")
+                print(f"Selected gene data: {selected_gene}")
+                return genome_browser_page(), '/'
+                
             print(f"\n=== DISPLAY_PAGE DEBUG ===")
             print(f"Selected gene: {gene_id}")
             print(f"Full selected_gene data: {selected_gene}")
@@ -546,9 +644,84 @@ def display_page(pathname, selected_gene):
     # Default and /summary
     return summary_page(), '/summary'
 
+# Callback for gene search functionality
+@callback(
+    Output('gene-search-results', 'children'),
+    Input('gene-search-button', 'n_clicks'),
+    State('gene-search-input', 'value'),
+    prevent_initial_call=True
+)
+def update_search_results(n_clicks, search_term):
+    if not search_term:
+        return html.Div("Enter a gene name to search", style={'color': 'gray', 'fontSize': '14px'})
+    
+    # Search for genes matching the search term
+    genes = search_genes(search_term)
+    
+    if not genes:
+        return html.Div(f"No genes found matching '{search_term}'", style={'color': 'red', 'fontSize': '14px'})
+    
+    # Create a dropdown with search results
+    options = [{'label': gene['label'], 'value': str(i)} for i, gene in enumerate(genes)]
+    
+    return html.Div([
+        html.P(f"Found {len(genes)} genes matching '{search_term}':", 
+              style={'marginBottom': '5px', 'fontSize': '14px', 'color': UCONN_NAVY}),
+        dcc.Dropdown(
+            id='gene-search-dropdown',
+            options=options,
+            placeholder='Select a gene...',
+            style={**uconn_styles['dropdown'], 'marginBottom': '10px'}
+        ),
+        # Store the full gene data for later use
+        dcc.Store(id='gene-search-data', data=genes)
+    ])
+
+# Callback to handle gene selection from search results
+@callback(
+    Output('selected-gene', 'data', allow_duplicate=True),
+    Output('url', 'pathname', allow_duplicate=True),
+    Input('gene-search-dropdown', 'value'),
+    State('gene-search-data', 'data'),
+    prevent_initial_call=True
+)
+def handle_search_selection(selected_index, genes_data):
+    if selected_index is None or not genes_data:
+        return no_update, no_update
+    
+    # Get the selected gene by index
+    selected_gene = genes_data[int(selected_index)]
+    print("\n======= GENE SEARCH SELECTION DEBUG =======")
+    print(f"Selected gene: {selected_gene}")
+    
+    # Create the required gene dictionary format
+    gene_dict = {
+        'id': selected_gene['id'],
+        'Gene': selected_gene['id'],  # Add 'Gene' field for compatibility with table selection
+        'chrom': selected_gene['chrom'],
+        'x1': selected_gene['x1'],
+        'x2': selected_gene['x2'],
+        'length': selected_gene['length'],
+        'strand': selected_gene['strand']
+    }
+    
+    # Return gene data and redirect to genome browser
+    return gene_dict, '/'
+
+# Callback to handle Enter key in search input
+@callback(
+    Output('gene-search-button', 'n_clicks', allow_duplicate=True),
+    Input('gene-search-input', 'n_submit'),
+    prevent_initial_call=True
+)
+def search_on_enter(n_submit):
+    if n_submit:
+        return 1  # Simulate button click
+    return no_update
+
 # Callback to handle gene table row selection
 @callback(
-    Output('selected-gene', 'data'),
+    Output('selected-gene', 'data', allow_duplicate=True),
     Output('url', 'pathname', allow_duplicate=True),
     Input('gene-table', 'active_cell'),
     State('gene-table', 'data'),
@@ -562,12 +735,22 @@ def store_selected_gene_and_redirect(active_cell, table_data):
         print(f"Selected row: {row}")
         print(f"Row data: {gene_row}")
         
-        # Simply store the selected gene data and redirect
-        # The database query happens in the display_page callback
-        return gene_row, '/'
+        # Extract only the gene name value from the row
+        gene_value = gene_row.get('Gene', '')
+        
+        if gene_value:
+            # Create a simpler dictionary with just the Gene value for the DB lookup
+            simplified_row = {'Gene': gene_value}
+            print(f"Using gene: {gene_value}")
+            
+            # Return the simplified data and redirect to genome browser
+            return simplified_row, '/'
+        else:
+            print("No Gene column found in the row data")
+            return no_update, no_update
         
     return no_update, no_update
 
 if __name__ == '__main__':
-    app.run(debug=True, port=8070)
-    # app.run(port=8070)
+    # app.run(debug=True, port=8070)
+    app.run_server(debug=True, host = '0.0.0.0', port='19530')
