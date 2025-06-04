@@ -1,0 +1,41 @@
+Gene,Description,GO_Annotation(s),Interaction_partner(s),SV_details (allele freq<0.01),FusorSV_id(s),OFC,ALL,MSC,NCC
+TCOF1,Treacle Ribosome Biogenesis Factor 1,RNA binding and transporter activity,"LIS1,NOLC1",multi-SV multi-sample NCC enhancer DEL,"C_53705, C_53712",1,0,0,2
+TGFB2,Transforming Growth Factor Beta 2,Signaling receptor binding,SMAD family,multi-SV multi-sample NCC insulator DEL,"C_9550, C_9541",1,0,3,0
+MECOM,MDS1 And EVI1 Complex Locus,Transcriptional regulator,"SMAD3, CREBBP, KAT2B, MAPK8, MAPK9",multi-SV multi-sample MSC insulator DEL,"C_32706, C_32721",1,0,2,0
+BCOR,BCL6 Corepressor,TF binding,"BCL6, MLLT3, KDM2B, TFAP2A","multi-SV in single sample direct DEL, INV","C_97874, C_242386",1,2,0,0
+SOX9,SRY-Box Transcription Factor 9,DNA binding TF activity,"COL family, RUNX2, FOXO family",NCC enhancer/insulator INS (MEI),C_227086,1,0,0,2
+SIM2,SIM BHLH Transcription Factor 2,DNA binding TF activity,-,"MSC insulator, NCC enhancer DEL",C_175091,1,0,2,2
+SMARCA2,SWI/SNF Related BAF Chromatin Remodeling Complex Subunit ATPase 2,DNA binding activity,npBAF complex,"MSC insulator/enhancer, NCC enhancer DEL",C_88109,1,0,1,1
+HIF1A,Hypoxia Inducible Factor 1 Subunit Alpha,DNA binding TF activity,"APEX1,CREBBP,EP300,NCOA1",MSC insulator DEL,C_135462,1,0,1,0
+TCF7L2,Transcription Factor 7 Like 2,"DNA binding TF activity, Chromatin binding","MYC, CTNNB1. TLE family","MSC, NCC enhancers DEL",C_109245,1,0,1,1
+MEIS2,Meis Homeobox 2,"TF binding, DNA binding TF activity","EPHA8, PBX family, HOX family",multi-sample direct INS (MEI),C_223697,1,1,0,0
+DNMT1,DNA Methyltransferase 1,"RNA binding, TF binding","H3K4, H3K9, BAG1",direct exon DEL,C_163987,1,1,0,0
+BICC1,BicC Family RNA Binding Protein 1,RNA binding,-,MSC enhancer DEL,C_107117,1,0,1,0
+PAX3,Paired Box 3,"DNA binding TF activity, Chromatin binding","MITF, SOX10",multi-SV multi-sample MSC insulator DEL,C_23454,1,0,2,0
+BMP4,Bone Morphogenetic Protein 4,"Cytokine activity, Heparin binding","SMAD1, MSX1, CTNNB1, MAP family",NCC enhancer DEL,C_135176,1,0,0,2
+MED1,Mediator Complex Subunit 1,Chromatin binding,"SP1, TFIID, ","multi-SV mult-sample NCC enhancer DEL, MSC insulator DEL","C_154763, C_154766, C_154770",0,0,1,2
+NFE2L1,NFE2 Like BZIP Transcription Factor 1,DNA binding TF activity,"CEBPB, SP7","multi-SV multi-sample NCC enhancer DEL, MSC insulator INS, enhancer DEL","C_155411, C_155393, C_226633",0,0,1,2
+DOT1L,DOT1 Like Histone Lysine Methyltransferase,"Histone methyltransferase activity, TF binding","MLLT3, BCOR, NCOR1, TFAP2A",multi-SV multi-sample MSC/CC enhancer DEL,"C_162775, C_162773, C_162777",0,0,2,1
+MLLT6,"MLLT6, PHD Finger Containin",Transcriptional regulator,MED1,"multi-SV multi-sample NCC insulator DEL, enhancer INS","C_154706, C_226473",0,0,0,2
+ANP32B,Acidic Nuclear Phosphoprotein 32 Family Member B,Histone binding,"XPO1, CRM1",MSC insulator DEL,C_91851,0,0,1,0
+SERTAD2,SERTA Domain Containing 2,Transcription coactivator activity,"E2F1, TFDP1",NCC enhancer INS,C_185279,0,0,0,1
+MYSM1,"Myb Like, SWIRM And MPN Domains 1","Chromatin binding, Complex binding","NOD2, TRAF3, TRAF6, PAX6, EBF1, FLT3",MSC enhancer DEL,C_3715,0,0,1,0
+AFF3,ALF Transcription Elongation Factor 3,DNA binding,-,direct exon DEL,C_18569,0,1,0,0
+PHF21A,PHD Finger Protein 21A,Chromatin binding,"KDM1A, BHC complex",direct exon DEL,C_113972,0,1,0,0
+WDR82,WD Repeat Domain 82,Chromatin binding,"H3K4, POLR2A, SET1, SET2",MSC insulator DEL,C_27678,0,0,1,0
+TET3,Tet Methylcytosine Dioxygenase 3,5-methylcytosine dioxygenase activity,"H2B, methyl-CpG",direct exon DEL,C_16066,0,1,0,0
+ZMYM5,Zinc Finger MYM-Type Containing 5,Transcriptional regulator,RNA polymerase II,MSC enhancer DEL,C_128215,0,0,1,0
+PWWP2A,PWWP Domain Containing 2A,"Mitosis progression, Chromatin binding","CHD7, MBD3, MTA1, H3K27, NuRD complex",MSC enhancer DEL,C_54086,0,0,1,0
+GATAD2A,GATA Zinc Finger Domain Containing 2A,DNA binding TF activity,"MBD2, NuRD complex",direct exon DEL,C_164798,0,1,0,0
+SINHCAF,SIN3-HDAC Complex Associated Factor,Complex stability,SINA3 complex,NCC insulator DEL,C_121569,0,0,0,1
+MBD5,Methyl-CpG Binding Domain Protein 5,Chromatine binding,"PR-DUB complex, MBD6",NCC enhancer DEL,C_20557,0,0,0,1
+BRD9,Bromodomain Containing 9,"Nucleic acid binding, Lysine-acetylated histone binding","RAD-51, RAD-54 complex, GBAF",direct exon DEL,C_46839,0,1,0,0
+EYA4,EYA Transcriptional Coactivator And Phosphatase 4,Protein tyrosine phosphatase activity,"MDC1, H2AX",MSC insulator DEL,C_64833,0,0,1,0
+LIMS1,LIM Zinc Finger Domain Containing 1,Protein kinase binding,GCC2,multi-sample MSC enhancer DEL,C_18906,0,0,4,0
+LMO7,LIM Domain 7,"Ubiquitin-protein transferase activity, Actinin binding",-,direct exon INS,C_220931,0,1,0,0
+SRSF6,Serine And Arginine Rich Splicing Factor 6,"RNA binding, NA binding",MAPT,"NCC, MSC enhancer DEL",C_171588,0,0,1,1
+SETD4,SET Domain Containing 4,Methyltransferase activity,PKMTs methylate histone lysines,"multi-SV multi-sample MSC,NCC, insulator and enhancers DEL,INV","C_248771, C_175033, C_231252, C_175039, C_175035, C_175036",0,0,3,4
+MEIS3,Meis Homeobox 3,DNA-binding transcription activator activity,"PDPK1,NDFIP1, BNIP3, CCNG1","direct 5 prime DEL, NCC enhancer DEL ","C_167106, C_167108",0,1,0,1
+RORB,RAR Related Orphan Receptor B,DNA binding TF activity,"RUNX2, PTF1A, FOXN4",MSC insulator DEL,C_90808,0,0,1,0
+ZMYM3,Zinc Finger MYM-Type Containing 3,Complex binding,"MED12, TAF1, OGT, NONO, ARR3",MSC insulator DEL,C_99036,0,0,1,0
+KDM8,Lysine Demethylase 8,"Chromatin binding, histone H3K36 demethylase activity","CCNA1,CRY1, RCCD1,H3K36 ",NCC promoter DEL,C_148215,0,0,0,1

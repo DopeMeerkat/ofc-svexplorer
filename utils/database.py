@@ -334,7 +334,8 @@ def get_circos_data(data_type, chromosomes, db_path=DB_PATH):
     Get data for Circos visualization
     
     Args:
-        data_type (str): Type of data to visualize ('gene_density', 'structural_variations', 'sample_comparison')
+        data_type (str): Type of data to visualize ('gene_density', 'structural_variations', 
+                        'sample_comparison', 'gene_interactions')
         chromosomes (list): List of chromosomes to include
         db_path (str): Path to the SQLite database
         
@@ -343,16 +344,49 @@ def get_circos_data(data_type, chromosomes, db_path=DB_PATH):
     """
     from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE
     import numpy as np
+    from utils.circos_helpers import (
+        generate_highlights_for_dense_regions,
+        generate_notable_sv_labels,
+        generate_interaction_heatmap
+    )
     
     # Generate layout data for selected chromosomes
     layout_data = []
-    for chrom in chromosomes:
+    print(f"\n===== CIRCOS DATA GENERATION DEBUG =====")
+    print(f"Generating layout data for chromosomes: {chromosomes}")
+    print(f"Number of chromosomes: {len(chromosomes)}")
+    print(f"Chromosome types: {[type(c).__name__ for c in chromosomes]}")
+    
+    # Sort chromosomes for better visualization
+    sorted_chromosomes = sorted(chromosomes, key=lambda c: 
+                               int(c.replace('chr', '')) if c.replace('chr', '').isdigit() 
+                               else (99 if c.replace('chr', '').upper() == 'X' 
+                                    else (100 if c.replace('chr', '').upper() == 'Y' 
+                                         else 101)))
+    
+    for i, chrom in enumerate(sorted_chromosomes):
         size = get_chromosome_size(chrom)
+        print(f"  - Chromosome {i+1}: '{chrom}', Size: {size}")
+        
+        # Format a more descriptive label - strip 'chr' prefix if present for display
+        display_label = chrom
+        if display_label.lower().startswith('chr'):
+            display_label = display_label[3:]
+            
         layout_data.append({
             'id': chrom,
-            'label': f'Chr {chrom}',
+            'label': f'Chr {display_label}',
             'color': UCONN_NAVY,
-            'len': size
+            'len': size,
+            'labelLink': {
+                'url': f'#chr{display_label}',  # Anchor link to allow jumping to specific chromosomes
+                'target': '_self'
+            },
+            'labelBackgroundColor': '#f8f9fa',
+            'labelTextAlign': 'center',
+            'highlight': True,  # Enable highlighting on mouse hover
+            'highlightColor': UCONN_LIGHT_BLUE,
+            'highlightOpacity': 0.3
         })
     
     # Generate track data based on the selected data type
@@ -360,17 +394,37 @@ def get_circos_data(data_type, chromosomes, db_path=DB_PATH):
         # Generate histogram data for gene density
         histogram_data = generate_gene_density_data(chromosomes, db_path)
         
+        # Only use one track type to avoid duplicate tracks
         tracks = [
             {
                 'type': 'HISTOGRAM',
                 'data': histogram_data,
                 'config': {
-                    'innerRadius': 250,
-                    'outerRadius': 300,
+                    'innerRadius': 0.65,
+                    'outerRadius': 0.85,
                     'color': UCONN_LIGHT_BLUE,
+                    'fillColor': UCONN_LIGHT_BLUE,
+                    'fillOpacity': 0.5,
+                    'strokeWidth': 1,
+                    'strokeColor': UCONN_NAVY,
+                    'axes': {
+                        'display': True,
+                        'color': '#CCCCCC',
+                        'thickness': 0.5,
+                        'values': [0, 25, 50, 75, 100]
+                    },
                     'tooltipContent': {
-                        'position': 'position',
-                        'value': 'value'
+                        'source': 'Source Gene',
+                        'target': 'Target Gene',
+                        'position': 'Position',
+                        'value': 'Value'
+                    },
+                    'tooltipStyle': {
+                        'backgroundColor': 'rgba(0, 0, 0, 0.8)',
+                        'color': 'white',
+                        'padding': '8px',
+                        'borderRadius': '4px',
+                        'fontSize': '12px'
                     }
                 }
             }
@@ -380,6 +434,7 @@ def get_circos_data(data_type, chromosomes, db_path=DB_PATH):
         # Generate chord data for structural variations
         chord_data = generate_sv_data(chromosomes, db_path)
         
+        # Only use one track type to avoid duplicate tracks
         tracks = [
             {
                 'type': 'CHORDS',
@@ -387,7 +442,41 @@ def get_circos_data(data_type, chromosomes, db_path=DB_PATH):
                 'config': {
                     'color': UCONN_LIGHT_BLUE,
                     'opacity': 0.7,
-                    'tooltipContent': {'source': 'source', 'target': 'target'},
+                    'thickness': 4,  # Increase chord thickness for better visibility
+                    'tooltipContent': {
+                        'source_gene': 'source_gene',
+                        'target_gene': 'target_gene'
+                    }
+                }
+            }
+        ]
+    
+    elif data_type == 'gene_interactions':
+        # Generate chord data for gene interactions from table.csv
+        chord_data = generate_gene_interactions_data(chromosomes, db_path)
+        
+        # Only use one track type to avoid duplicate tracks
+        tracks = [
+            {
+                'type': 'CHORDS',
+                'data': chord_data,
+                'config': {
+                    'color': UCONN_LIGHT_BLUE,
+                    'opacity': 0.7,
+                    'thickness': 4,  # Increase chord thickness for better visibility
+                    'tooltipContent': {
+                        'source_gene': 'Gene',
+                        'target_gene': 'Interacts with',
+                        'source': {'id': 'Source Location', 'start': 'Start', 'end': 'End'},
+                        'target': {'id': 'Target Location', 'start': 'Start', 'end': 'End'}
+                    },
+                    'tooltipStyle': {
+                        'backgroundColor': 'rgba(0, 0, 0, 0.8)',
+                        'color': 'white',
+                        'padding': '8px',
+                        'borderRadius': '4px',
+                        'fontSize': '12px'
+                    }
                 }
             }
         ]
@@ -397,26 +486,71 @@ def get_circos_data(data_type, chromosomes, db_path=DB_PATH):
         histogram_data = generate_gene_density_data(chromosomes, db_path)
         chord_data = generate_sv_data(chromosomes, db_path)
         
+        # Generate highlight regions for key areas of interest
+        highlight_data = []
+        # Add some key regions of interest
+        for chrom in sorted_chromosomes:
+            size = get_chromosome_size(chrom)
+            # Add a random region of interest in each chromosome
+            start_pos = np.random.randint(0, size - size//5)
+            end_pos = start_pos + np.random.randint(size//10, size//5)
+            highlight_data.append({
+                'block_id': chrom,
+                'start': start_pos,
+                'end': end_pos,
+                'color': f'rgba({np.random.randint(100, 255)}, {np.random.randint(100, 255)}, {np.random.randint(100, 255)}, 0.3)'
+            })
+        
         tracks = [
+            {
+                'type': 'HIGHLIGHT',
+                'data': highlight_data,
+                'config': {
+                    'innerRadius': 0.95,
+                    'outerRadius': 1,
+                    'opacity': 0.8,
+                    'tooltipContent': {
+                        'block_id': 'Region',
+                        'start': 'Start',
+                        'end': 'End'
+                    }
+                }
+            },
             {
                 'type': 'CHORDS',
                 'data': chord_data,
                 'config': {
                     'color': UCONN_LIGHT_BLUE,
                     'opacity': 0.7,
-                    'tooltipContent': {'source': 'source', 'target': 'target'},
+                    'thickness': 4,  # Increase chord thickness for better visibility
+                    'tooltipContent': {
+                        'source': 'source',
+                        'target': 'target',
+                        'source_gene': 'Source Gene',
+                        'target_gene': 'Target Gene'
+                    },
                 }
             },
             {
                 'type': 'HISTOGRAM',
                 'data': histogram_data,
                 'config': {
-                    'innerRadius': 250,
-                    'outerRadius': 300,
+                    'innerRadius': 0.65,
+                    'outerRadius': 0.85,
                     'color': UCONN_LIGHT_BLUE,
+                    'fillColor': UCONN_LIGHT_BLUE,
+                    'fillOpacity': 0.5,
+                    'strokeWidth': 1,
+                    'strokeColor': UCONN_NAVY,
+                    'axes': {
+                        'display': True,
+                        'color': '#CCCCCC',
+                        'thickness': 0.5,
+                        'values': [0, 25, 50, 75, 100]
+                    },
                     'tooltipContent': {
-                        'position': 'position',
-                        'value': 'value'
+                        'position': 'Position',
+                        'value': 'Value'
                     }
                 }
             }
@@ -537,12 +671,193 @@ def generate_sv_data(chromosomes, db_path=DB_PATH):
                 'source': {'id': source_chrom, 'start': source_start, 'end': source_end}, 
                 'target': {'id': target_chrom, 'start': target_start, 'end': target_end},
                 'color': UCONN_LIGHT_BLUE,
-                'value': np.random.randint(1, 10)  # Some measure of importance/frequency
+                'value': np.random.randint(1, 10),  # Some measure of importance/frequency
+                'source_gene': find_gene_at_location(source_chrom, source_start, source_end, cursor),
+                'target_gene': find_gene_at_location(target_chrom, target_start, target_end, cursor)
             })
         
         conn.close()
     except sqlite3.Error as e:
         print(f"Database error in generate_sv_data: {e}")
+    
+    return chord_data
+
+def generate_gene_interactions_data(chromosomes, db_path=DB_PATH):
+    """
+    Generate gene interaction data for Circos visualization
+    
+    Args:
+        chromosomes (list): List of chromosomes to include
+        db_path (str): Path to the SQLite database
+        
+    Returns:
+        list: Chord data for Circos visualization representing gene interactions
+        
+    Note:
+        This function adds 2Mb padding to both start and end positions of gene
+        interactions to make the chords more visible in the Circos plot.
+    """
+    from utils.styling import UCONN_LIGHT_BLUE, UCONN_NAVY
+    import pandas as pd
+    import csv
+    
+    chord_data = []
+    
+    try:
+        # Load the interaction data from table.csv
+        table_df = pd.read_csv('assets/table.csv')
+        
+        print("\n===== CIRCOS GENE INTERACTION DEBUGGING =====")
+        print(f"Found {len(table_df)} rows in table.csv")
+        print("Column headers:", table_df.columns.tolist())
+        
+        # Connect to the database to get gene coordinates
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Process each gene in the table
+        for index, row in table_df.iterrows():
+            gene_id = row['Gene']
+            interaction_partners = row.get('Interaction_partner(s)', '')
+            
+            print(f"\nSource gene: {gene_id}")
+            print(f"  Interaction partners: '{interaction_partners}'")
+            
+            # Skip if no interaction partners
+            if pd.isna(interaction_partners) or interaction_partners == '-' or not interaction_partners:
+                print(f"  No valid interaction partners for {gene_id}, skipping")
+                continue
+                
+            # Get the coordinates of the source gene
+            cursor.execute("""
+                SELECT id, chrom, x1, x2 
+                FROM genes 
+                WHERE id = ?
+            """, (gene_id,))
+            source_gene = cursor.fetchone()
+            
+            if not source_gene:
+                print(f"  WARNING: Source gene {gene_id} not found in database")
+                continue
+                
+            source_chrom = source_gene[1]
+            print(f"  Source gene {gene_id} found on chromosome {source_chrom}")
+            
+            # Skip if source chromosome not in selected chromosomes
+            if source_chrom not in chromosomes:
+                print(f"  Skipping {gene_id} - chromosome {source_chrom} not in selected chromosomes")
+                continue
+                
+            # Process each interaction partner
+            partners = [p.strip() for p in interaction_partners.split(',')]
+            print(f"  Parsed partners: {partners}")
+            
+            for partner in partners:
+                # Handle family names (e.g., "SMAD family")
+                if "family" in partner.lower():
+                    family_prefix = partner.split()[0]
+                    print(f"  Processing family: {partner} (prefix: {family_prefix})")
+                    
+                    # Query for genes that start with this prefix
+                    cursor.execute("""
+                        SELECT id, chrom, x1, x2 
+                        FROM genes 
+                        WHERE id LIKE ?
+                    """, (f"{family_prefix}%",))
+                    family_genes = cursor.fetchall()
+                    print(f"  Found {len(family_genes)} genes in the {family_prefix} family")
+                    
+                    for family_gene in family_genes:
+                        target_chrom = family_gene[1];
+                        
+                        # Skip if target chromosome not in selected chromosomes
+                        if target_chrom not in chromosomes:
+                            continue
+                            
+                        # Add padding to make chords wider and more visible
+                        padding = 2000000  # 2Mb padding on each side for better visibility
+                        source_start_padded = max(0, source_gene[2] - padding)
+                        source_end_padded = source_gene[3] + padding
+                        target_start_padded = max(0, family_gene[2] - padding)
+                        target_end_padded = family_gene[3] + padding
+                        
+                        # Add chord between source gene and this family member with gene names as labels
+                        chord_data.append({
+                            'source': {
+                                'id': source_chrom, 
+                                'start': source_start_padded, 
+                                'end': source_end_padded,
+                                'gene_id': source_gene[0]  # Add source gene ID
+                            }, 
+                            'target': {
+                                'id': target_chrom, 
+                                'start': target_start_padded, 
+                                'end': target_end_padded,
+                                'gene_id': family_gene[0]  # Add target gene ID
+                            },
+                            'color': UCONN_LIGHT_BLUE,
+                            'value': 1,  # Interaction strength
+                            'source_gene': source_gene[0],  # Source gene name
+                            'target_gene': family_gene[0]   # Target gene name
+                        })
+                else:
+                    # Direct partner lookup
+                    print(f"  Looking up direct partner: {partner}")
+                    cursor.execute("""
+                        SELECT id, chrom, x1, x2 
+                        FROM genes 
+                        WHERE id = ?
+                    """, (partner,))
+                    target_gene = cursor.fetchone()
+                    
+                    if not target_gene:
+                        print(f"  WARNING: Interaction partner {partner} for gene {gene_id} not found in database")
+                        continue
+                    
+                    print(f"  Found partner gene {partner} on chromosome {target_gene[1]}")
+                        
+                    target_chrom = target_gene[1]
+                    
+                    # Skip if target chromosome not in selected chromosomes
+                    if target_chrom not in chromosomes:
+                        print(f"  Skipping {partner} - chromosome {target_chrom} not in selected chromosomes")
+                        continue
+                        
+                    # Add padding to make chords wider and more visible
+                    padding = 2000000  # 2Mb padding on each side for better visibility
+                    source_start_padded = max(0, source_gene[2] - padding)
+                    source_end_padded = source_gene[3] + padding
+                    target_start_padded = max(0, target_gene[2] - padding)
+                    target_end_padded = target_gene[3] + padding
+                    
+                    # Add chord between source and target gene with gene names as labels
+                    chord_data.append({
+                        'source': {
+                            'id': source_chrom, 
+                            'start': source_start_padded, 
+                            'end': source_end_padded,
+                            'gene_id': source_gene[0]  # Add source gene ID
+                        }, 
+                        'target': {
+                            'id': target_chrom, 
+                            'start': target_start_padded, 
+                            'end': target_end_padded,
+                            'gene_id': target_gene[0]  # Add target gene ID
+                        },
+                        'color': UCONN_NAVY,
+                        'value': 1,  # Interaction strength
+                        'source_gene': source_gene[0],  # Source gene name
+                        'target_gene': target_gene[0]   # Target gene name
+                    })
+        
+        conn.close()
+        print(f"\nGenerated {len(chord_data)} gene interaction chords for Circos visualization")
+        print("===== END CIRCOS GENE INTERACTION DEBUGGING =====\n")
+        
+    except Exception as e:
+        print(f"Error generating gene interactions data: {e}")
+        import traceback
+        traceback.print_exc()
     
     return chord_data
 
@@ -581,10 +896,47 @@ def get_chromosome_size(chrom):
         '21': 46709983,
         '22': 50818468,
         'X': 156040895,
-        'Y': 57227415
+        'Y': 57227415,
+        'MT': 16569,
+        'M': 16569
     }
     
-    return sizes.get(chrom, 100000000)  # Default size if not found
+    # Normalize chromosome name (strip "chr" prefix if present)
+    chrom_normalized = chrom
+    if isinstance(chrom, str):  # Ensure chrom is a string
+        if chrom_normalized.lower().startswith('chr'):
+            chrom_normalized = chrom_normalized[3:]
+        
+        print(f"Chromosome size lookup: '{chrom}' → normalized: '{chrom_normalized}'")
+        
+        # Try different formats to find a match
+        formats_to_try = [
+            chrom_normalized,                   # As is
+            chrom_normalized.upper(),           # Uppercase
+            chrom_normalized.lower(),           # Lowercase 
+            chrom_normalized.strip(),           # Trimmed
+            chrom_normalized.strip().upper(),   # Trimmed uppercase
+            chrom_normalized.strip().lower()    # Trimmed lowercase
+        ]
+        
+        for format_to_try in formats_to_try:
+            if format_to_try in sizes:
+                print(f"  Found match with format: '{format_to_try}'")
+                return sizes[format_to_try]
+        
+        # Special handling for 'chrM' and 'chrMT' (mitochondrial)
+        if chrom_normalized.upper() in ['M', 'MT']:
+            print(f"  Matched as mitochondrial chromosome")
+            return sizes['MT']
+        
+        print(f"  WARNING: No match found for chromosome '{chrom}' (normalized: '{chrom_normalized}')")
+        print(f"  Attempted formats: {formats_to_try}")
+        print(f"  Available keys in size dictionary: {list(sizes.keys())}")
+    else:
+        print(f"  ERROR: Chromosome is not a string: {chrom} (type: {type(chrom).__name__})")
+    
+    # Default size if not found
+    return 100000000
 
 def get_family_ids(db_path=DB_PATH):
     """
@@ -770,3 +1122,38 @@ def create_family_tracks(family_members, db_path=DB_PATH):
         tracks.append(child_track)
     
     return tracks
+
+def find_gene_at_location(chrom, start, end, cursor):
+    """
+    Find a gene at a specific genomic location
+    
+    Args:
+        chrom (str): Chromosome
+        start (int): Start position
+        end (int): End position
+        cursor: Database cursor
+        
+    Returns:
+        str: Gene ID if found, or a location descriptor if not
+    """
+    try:
+        # Look up the gene in the database
+        cursor.execute("""
+            SELECT id FROM genes 
+            WHERE chrom = ? AND 
+                  ((x1 <= ? AND x2 >= ?) OR  -- Gene contains the region
+                   (x1 >= ? AND x1 <= ?) OR  -- Region overlaps start of gene
+                   (x2 >= ? AND x2 <= ?))    -- Region overlaps end of gene
+            ORDER BY length DESC
+            LIMIT 1
+        """, (chrom, start, end, start, end, start, end))
+        
+        result = cursor.fetchone()
+        if result:
+            return result[0]  # Return the gene ID
+        else:
+            # If no gene is found, return a location descriptor
+            return f"Chr{chrom}:{start:,}-{end:,}"
+    except Exception as e:
+        print(f"Error finding gene at location: {e}")
+        return f"Chr{chrom}:{start:,}-{end:,}"
