@@ -18,87 +18,26 @@ from utils.database import get_circos_data, DB_PATH
 
 def page_layout():
     """
-    Create the circos plot visualization page layout
+    Create the circos plot visualization page layout focused on gene interactions
     
     Returns:
         dash.html.Div: The circos visualization page layout
     """
-    # Get initial visualization on page load
-    layout_data, track_data = get_circos_data('gene_interactions', ['chr1', 'chr2', 'chr3', 'chr4', 'chr5'])
-    
-    initial_circos = dashbio.Circos(
-        id='circos-graph',
-        layout=layout_data,
-        tracks=track_data,
-        config={
-            'innerRadius': 300,
-            'outerRadius': 320,
-            'labels': {
-                'display': True,
-                'size': 18,
-                'color': UCONN_NAVY,
-                'radialOffset': 80,
-                'position': 'center',
-                'font': 'Arial',
-                'backgroundColor': '#ffffff',
-                'padding': 6,
-                'borderRadius': 4,
-                'style': {
-                    'fontWeight': 'bold'
-                }
-            },
-            'ticks': {
-                'display': True,
-                'color': UCONN_NAVY,
-                'spacing': 1000000,
-                'labels': True,
-                'labelSpacing': 10,
-                'labelSuffix': 'Mb',
-                'labelDenominator': 1000000,
-                'labelDisplay0': True,
-                'labelSize': 10,
-                'labelColor': UCONN_NAVY,
-                'labelFont': 'Arial',
-                'majorSpacing': 5000000,
-                'minorSpacing': 1000000,
-                'minorTickLength': 5,
-                'majorTickLength': 10
-            },
-            'defaultTrackStyle': {
-                'tooltipShowEvent': 'mouseover',
-                'tooltipHideEvent': 'mouseout',
-                'tooltipPosition': 'auto',
-                'tooltipPadding': 10,
-                'tooltipStyle': {
-                    'backgroundColor': 'rgba(0, 0, 0, 0.8)',
-                    'color': 'white',
-                    'padding': '8px',
-                    'borderRadius': '4px',
-                    'fontSize': '12px'
-                }
-            }
-        },
-        style={'width': '100%', 'height': '700px'}
-    )
-
     return html.Div([
         html.Div([
             html.H2('Circos Plot Visualization', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
-            html.P('Explore genomic relationships using this interactive Circos plot. This visualization displays genomic data in a circular layout, allowing you to see relationships between different chromosomal regions.', 
+            html.P('Explore gene interactions in a circular layout. The chords show relationships between different chromosomal regions.', 
                   style={'fontSize': '16px', 'lineHeight': '1.5'})
         ], style={'marginBottom': '30px'}),
         
         html.Div([
             html.Div([
                 html.H3('Visualization Controls', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
-                html.Label('Select Data Type', style={'fontWeight': 'bold', 'color': UCONN_NAVY}),
+                html.Label('Data Type', style={'fontWeight': 'bold', 'color': UCONN_NAVY}),
                 dcc.Dropdown(
                     id='circos-data-type',
                     options=[
-                        {'label': 'Gene Density', 'value': 'gene_density'},
-                        {'label': 'Structural Variations', 'value': 'structural_variations'},
-                        {'label': 'Gene Interactions', 'value': 'gene_interactions'},
-                        {'label': 'Sample Comparison', 'value': 'sample_comparison'}
+                        {'label': 'Gene Interactions', 'value': 'gene_interactions'}
                     ],
                     value='gene_interactions',
                     style={'marginBottom': '15px'}
@@ -146,18 +85,7 @@ def page_layout():
                                'borderRadius': '4px',
                                'cursor': 'pointer',
                                'marginTop': '10px'
-                           }),
-                
-                html.Div([
-                    html.H4('Visualization Guide', style={'color': UCONN_NAVY, 'marginTop': '20px', 'fontSize': '16px'}),
-                    html.Ul([
-                        html.Li('Hover over chromosomes to highlight them', style={'marginBottom': '5px'}),
-                        html.Li('Click on chords to see gene interactions', style={'marginBottom': '5px'}),
-                        html.Li('Click on histograms to see data points', style={'marginBottom': '5px'}),
-                        html.Li('Explore highlighted regions for areas of interest', style={'marginBottom': '5px'}),
-                        html.Li('Examine text labels for important annotations', style={'marginBottom': '5px'})
-                    ], style={'paddingLeft': '20px'})
-                ], style={'marginTop': '20px'})
+                           })
             ], style={'width': '25%', 'display': 'inline-block', 'verticalAlign': 'top', 'padding': '10px'}),
             
             html.Div([
@@ -165,12 +93,14 @@ def page_layout():
                     dcc.Loading(
                         id="circos-loading",
                         type="circle",
-                        children=html.Div(id='circos-container', children=[initial_circos])
+                        children=html.Div(id='circos-container', children=[
+                            update_circos_visualization(None, 'gene_interactions', ['1', '2', '3', '4', '5'])
+                        ])
                     )
-                ], style={'height': '700px', 'position': 'relative', 'paddingLeft': '40px', 'paddingBottom': '40px'})
+                ], style={'height': '700px', 'position': 'relative', 'paddingLeft': '40px', 'paddingBottom': '80px'})
             ], style={'width': '75%', 'display': 'inline-block', 'verticalAlign': 'top'})
         ]),
-    ], style={'padding': '20px'})
+    ], style={'padding': '20px', 'paddingBottom': '80px'})
 
 # Callback to update the Circos visualization
 @callback(
@@ -191,10 +121,6 @@ def update_circos_visualization(n_clicks, data_type, chromosomes):
     Returns:
         dashbio.Circos: Updated Circos component
     """
-    if n_clicks is None:
-        # Initial load - provide default visualization
-        return generate_default_circos()
-    
     if not chromosomes or len(chromosomes) == 0:
         return html.Div("Please select at least one chromosome", style={'color': 'red', 'marginTop': '20px'})
     
@@ -606,23 +532,7 @@ def generate_default_circos():
             'highlightOpacity': 0.3
         })
     
-    # Generate some sample histogram data
-    histogram_data = []
-    for chrom in ['1', '2', '3', '4', '5']:
-        # Add 'chr' prefix
-        db_chrom = f"chr{chrom}"
-        size = get_chromosome_size(db_chrom)
-        num_points = 20
-        step = size // num_points
-        for i in range(num_points):
-            pos = i * step
-            # Create a sine wave pattern with some randomness
-            value = (np.sin(i/num_points * 2 * np.pi) + 1) * 0.5 * 100 + np.random.randint(0, 20)
-            histogram_data.append({
-                'block_id': db_chrom,
-                'position': pos,
-                'value': value
-            })
+    # No need for histogram data for gene interactions
     
     # Sample chord data (connections between chromosomes)
     chord_data = [
@@ -643,37 +553,7 @@ def generate_default_circos():
          'target_gene': 'Gene4-F'}
     ]
     
-    # Generate text labels for important regions
-    text_labels = [
-        {'block_id': 'chr1', 'position': 50000000, 'value': 'Hotspot', 'color': '#FF5733'},
-        {'block_id': 'chr2', 'position': 70000000, 'value': 'LOH', 'color': '#C70039'},
-        {'block_id': 'chr4', 'position': 30000000, 'value': 'CNV', 'color': '#900C3F'}
-    ]
-    
-    # Generate highlight regions
-    highlight_data = [
-        {'block_id': 'chr1', 'start': 40000000, 'end': 60000000, 'color': '#FFC30033'},
-        {'block_id': 'chr2', 'start': 65000000, 'end': 85000000, 'color': '#FF573333'},
-        {'block_id': 'chr4', 'start': 20000000, 'end': 40000000, 'color': '#C7003933'}
-    ]
-    
-    # Generate heatmap data for the innermost track
-    heatmap_data = []
-    for chrom in ['1', '2', '3', '4', '5']:
-        db_chrom = f"chr{chrom}"
-        size = get_chromosome_size(db_chrom)
-        num_points = 10
-        step = size // num_points
-        for i in range(num_points):
-            pos = i * step
-            # Generate a value between 0 and 1
-            value = np.random.random()
-            heatmap_data.append({
-                'block_id': db_chrom,
-                'start': pos,
-                'end': pos + step,
-                'value': value
-            })
+    # Focusing just on gene interactions, no need for additional tracks
     
     print(f"Generated {len(chord_data)} default chord connections")
     print(f"First chord: {chord_data[0]['source']['id']} -> {chord_data[0]['target']['id']}")
