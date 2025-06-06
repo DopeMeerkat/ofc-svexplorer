@@ -219,15 +219,40 @@ def create_parent_track(chrom, gender, name):
             ORDER BY ps.start
         """, (chrom, gender))
         
-        # Create track features
-        features = []
+        # Create a dictionary to count occurrences of SVs with same ID
+        sv_counts = {}
+        sv_details = {}
+        
+        # Process rows and count occurrences
         for row in cursor.fetchall():
+            sv_id = row['id']
+            
+            # Store details for the first occurrence
+            if sv_id not in sv_details:
+                sv_details[sv_id] = {
+                    'chr': row['chrom'],
+                    'start': row['start'],
+                    'end': row['end'],
+                    'type': row['type']
+                }
+            
+            # Increment count
+            if sv_id in sv_counts:
+                sv_counts[sv_id] += 1
+            else:
+                sv_counts[sv_id] = 1
+        
+        # Create track features with count information
+        features = []
+        for sv_id, count in sv_counts.items():
+            details = sv_details[sv_id]
             feature = {
-                'chr': row['chrom'],
-                'start': row['start'],
-                'end': row['end'],
-                'name': f"{row['id']} ({row['type']})",
-                'type': row['type']
+                'chr': details['chr'],
+                'start': details['start'],
+                'end': details['end'],
+                'name': sv_id,
+                'description': f"Type: {details['type']}<br>Count: {count}<br>Size: {details['end'] - details['start']} bp",
+                'type': details['type']
             }
             features.append(feature)
         
@@ -286,24 +311,59 @@ def create_child_track(chrom):
             ORDER BY ps.start
         """, (chrom,))
         
-        # Create track features
-        features = []
+        # Create dictionaries to count and track SV details
+        sv_counts = {}
+        sv_details = {}
+        sv_statuses = {}
+        
+        # Process rows and count occurrences
         for row in cursor.fetchall():
-            # Add affected/proband status to feature name
+            sv_id = row['id']
+            
+            # Store details for the first occurrence
+            if sv_id not in sv_details:
+                sv_details[sv_id] = {
+                    'chr': row['chrom'],
+                    'start': row['start'],
+                    'end': row['end'],
+                    'type': row['type']
+                }
+            
+            # Track status information
             status = []
             if row['affected'] == 1:
                 status.append("Affected")
             if row['proband'] == 1:
                 status.append("Proband")
             
-            status_str = f" ({', '.join(status)})" if status else ""
+            if status:
+                if sv_id not in sv_statuses:
+                    sv_statuses[sv_id] = set()
+                for s in status:
+                    sv_statuses[sv_id].add(s)
+            
+            # Increment count
+            if sv_id in sv_counts:
+                sv_counts[sv_id] += 1
+            else:
+                sv_counts[sv_id] = 1
+        
+        # Create track features with count information
+        features = []
+        for sv_id, count in sv_counts.items():
+            details = sv_details[sv_id]
+            
+            # Format status string for description
+            status_list = list(sv_statuses.get(sv_id, set()))
+            status_str = f"Status: {', '.join(status_list)}<br>" if status_list else ""
             
             feature = {
-                'chr': row['chrom'],
-                'start': row['start'],
-                'end': row['end'],
-                'name': f"{row['id']} ({row['type']}){status_str}",
-                'type': row['type']
+                'chr': details['chr'],
+                'start': details['start'],
+                'end': details['end'],
+                'name': sv_id,
+                'description': f"Type: {details['type']}<br>{status_str}Count: {count}<br>Size: {details['end'] - details['start']} bp",
+                'type': details['type']
             }
             features.append(feature)
         
@@ -357,10 +417,25 @@ def create_background_track(chrom):
             ORDER BY start
         """, (chrom,))
         
-        # Create track features
-        features = []
+        # Create dictionaries to count and track SV details
+        sv_counts = {}
+        sv_details = {}
+        sv_pop_info = {}
+        
+        # Process rows and count occurrences
         for row in cursor.fetchall():
-            # Add population information to feature name
+            sv_id = row['id']
+            
+            # Store details for the first occurrence
+            if sv_id not in sv_details:
+                sv_details[sv_id] = {
+                    'chr': row['chrom'],
+                    'start': row['start'],
+                    'end': row['end'],
+                    'type': row['type']
+                }
+            
+            # Collect population information
             pop_info = []
             if row['pop_code']:
                 pop_info.append(f"Pop: {row['pop_code']}")
@@ -368,15 +443,35 @@ def create_background_track(chrom):
                 pop_info.append(f"SuperPop: {row['superpop_code']}")
             if row['freq']:
                 pop_info.append(f"Freq: {row['freq']}")
-                
-            pop_str = f" ({', '.join(pop_info)})" if pop_info else ""
+            
+            if pop_info:
+                if sv_id not in sv_pop_info:
+                    sv_pop_info[sv_id] = set()
+                for info in pop_info:
+                    sv_pop_info[sv_id].add(info)
+            
+            # Increment count
+            if sv_id in sv_counts:
+                sv_counts[sv_id] += 1
+            else:
+                sv_counts[sv_id] = 1
+        
+        # Create track features with count information
+        features = []
+        for sv_id, count in sv_counts.items():
+            details = sv_details[sv_id]
+            
+            # Format population information for description
+            pop_info_list = list(sv_pop_info.get(sv_id, set()))
+            pop_str = f"{','.join(pop_info_list)}<br>" if pop_info_list else "".replace(',', '<br>')
             
             feature = {
-                'chr': row['chrom'],
-                'start': row['start'],
-                'end': row['end'],
-                'name': f"{row['id']} ({row['type']}){pop_str}",
-                'type': row['type']
+                'chr': details['chr'],
+                'start': details['start'],
+                'end': details['end'],
+                'name': sv_id,
+                'description': f"Type: {details['type']}<br>{pop_str}Count: {count}<br>Size: {details['end'] - details['start']} bp",
+                'type': details['type']
             }
             features.append(feature)
         
@@ -394,7 +489,7 @@ def create_background_track(chrom):
         }
         
         return track
-    
+        
     except Exception as e:
         print(f"Error creating background track: {e}")
         return {
