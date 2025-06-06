@@ -78,6 +78,10 @@ def create_uconn_header():
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
+                dcc.Tab(label='Population SVs', value='/population',
+                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                ),
             ],
             style={'marginTop': '8px', 'backgroundColor': UCONN_NAVY, 'borderRadius': '0', 'border': f'1px solid {UCONN_NAVY}', 'width': '100%'},
             colors={

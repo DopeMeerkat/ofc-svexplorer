@@ -20,6 +20,7 @@ from pages import image_pages
 from pages import network
 from pages import circos
 from pages import family_genomes
+from pages import population_svs
 
 # Define the app layout with components
 def layout():
@@ -111,6 +112,8 @@ def display_page(pathname, selected_gene):
     if pathname == '/family':
         # Always pass selected_gene to family genomes page, it will handle it internally
         return family_genomes.page_layout(selected_gene=selected_gene), '/family'
+    if pathname == '/population':
+        return population_svs.page_layout(selected_gene=selected_gene), '/population'
     # Default and /summary
     return summary.page_layout(), '/summary'
 
