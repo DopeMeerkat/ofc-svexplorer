@@ -12,7 +12,7 @@ import json
 from app import app, HOSTED_GENOME_DICT
 from components.population_gene_search import create_population_gene_search
 from utils.styling import uconn_styles, UCONN_NAVY, UCONN_LIGHT_BLUE
-from utils.database import get_tracks_for_genome, DB_PATH
+from utils.database import get_tracks_for_genome, DB_PATH, get_sample_counts
 
 def page_layout(selected_gene=None):
     """
@@ -59,16 +59,8 @@ def page_layout(selected_gene=None):
                 ),
                 
                 html.H3('Track Information', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
-                html.Div([
-                    html.H4('Mother Track', style={'color': '#CC3366'}),
-                    html.P('Combined structural variations from all mothers in the dataset.'),
-                    html.H4('Father Track', style={'color': '#3366CC'}),
-                    html.P('Combined structural variations from all fathers in the dataset.'),
-                    html.H4('Child Track', style={'color': UCONN_NAVY}),
-                    html.P('Combined structural variations from all children in the dataset.'),
-                    html.H4('Background Track', style={'color': '#669900'}),
-                    html.P('Reference structural variations from population databases.')
-                ], style={'marginBottom': '20px'})
+                # Track information with sample counts - updated dynamically
+                html.Div(id='track-info-container', style={'marginBottom': '20px'})
             ], style={'width': '30%', 'display': 'inline-block', 'verticalAlign': 'top', 'padding': '0 20px 0 0'}),
             
             html.Div([
@@ -501,3 +493,38 @@ def create_background_track(chrom):
             'color': '#669900',
             'height': 100
         }
+
+# Callback to update track information with sample counts
+@callback(
+    Output('track-info-container', 'children'),
+    Input('pop-igv-genome-select', 'value')  # Any input to trigger initial load
+)
+def update_track_info(_):
+    """Update the track information section with sample counts"""
+    try:
+        counts = get_sample_counts()
+        return html.Div([
+            html.H4('Mother Track', style={'color': '#CC3366'}),
+            html.P([
+                'Combined structural variations from all mothers in the dataset. ',
+                html.Strong(f'({counts["mother"]} samples)')
+            ]),
+            html.H4('Father Track', style={'color': '#3366CC'}),
+            html.P([
+                'Combined structural variations from all fathers in the dataset. ',
+                html.Strong(f'({counts["father"]} samples)')
+            ]),
+            html.H4('Child Track', style={'color': UCONN_NAVY}),
+            html.P([
+                'Combined structural variations from all children in the dataset. ',
+                html.Strong(f'({counts["child"]} samples)')
+            ]),
+            html.H4('Background Track', style={'color': '#669900'}),
+            html.P([
+                'Reference structural variations from population databases. ',
+                html.Strong(f'({counts["background"]} samples)')
+            ])
+        ])
+    except Exception as e:
+        print(f"Error updating track info: {e}")
+        return html.Div('Error loading track information')

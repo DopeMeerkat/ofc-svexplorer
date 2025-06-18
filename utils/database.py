@@ -1157,3 +1157,55 @@ def find_gene_at_location(chrom, start, end, cursor):
     except Exception as e:
         print(f"Error finding gene at location: {e}")
         return f"Chr{chrom}:{start:,}-{end:,}"
+
+def get_sample_counts():
+    """
+    Get the count of samples for each track type (mother, father, child)
+    
+    Returns:
+        dict: Dictionary with counts for each track type and background
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        counts = {}
+        
+        # Get parent and child counts from phenotype_svs joined with phenotype
+        cursor.execute("""
+            SELECT 
+                CASE 
+                    WHEN p.child = 1 THEN 'child'
+                    WHEN p.gender = 'F' THEN 'mother'
+                    WHEN p.gender = 'M' THEN 'father'
+                END as role,
+                COUNT(DISTINCT s.sample) as count
+            FROM phenotype_svs s
+            JOIN phenotype p ON s.sample = p.bam_id
+            GROUP BY 
+                CASE 
+                    WHEN p.child = 1 THEN 'child'
+                    WHEN p.gender = 'F' THEN 'mother'
+                    WHEN p.gender = 'M' THEN 'father'
+                END
+            HAVING role IS NOT NULL
+        """)
+        
+        for role, count in cursor.fetchall():
+            counts[role] = count
+            
+        # Get background sample count from background_svs
+        cursor.execute("SELECT COUNT(DISTINCT sample) FROM background_svs")
+        counts['background'] = cursor.fetchone()[0]
+        
+        # Ensure all expected keys exist
+        for key in ['mother', 'father', 'child', 'background']:
+            if key not in counts:
+                counts[key] = 0
+        
+        conn.close()
+        return counts
+        
+    except sqlite3.Error as e:
+        print(f"Database error when getting sample counts: {e}")
+        return {'mother': 0, 'father': 0, 'child': 0, 'background': 0}

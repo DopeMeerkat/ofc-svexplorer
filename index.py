@@ -21,6 +21,8 @@ from pages import network
 from pages import circos
 from pages import family_genomes
 from pages import population_svs
+from pages import dashboard
+from pages import visualization_uploader  # Add visualization uploader import
 
 # Define the app layout with components
 def layout():
@@ -94,6 +96,10 @@ def display_page(pathname, selected_gene):
     # Handle normal page routing
     if pathname == '/table':
         return table.page_layout(), '/table'
+    if pathname == '/dashboard':
+        return dashboard.page_layout(), '/dashboard'
+    if pathname == '/visualization-upload':
+        return visualization_uploader.page_layout(), '/visualization-upload'
     if pathname == '/':
         # When navigating directly via tab, don't pass any gene
         return genome_browser.page_layout(), '/'

@@ -752,4 +752,4 @@ def store_selected_gene_and_redirect(active_cell, table_data):
     return no_update, no_update
 
 if __name__ == '__main__':
-    app.run(debug=True, port=8003)
+    app.run(debug=True, port=8002)
