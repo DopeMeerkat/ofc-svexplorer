@@ -386,19 +386,19 @@ def page_layout():
         ], style={'marginBottom': '30px'}),
         
         # # Size analysis
-        # html.Div([
-        #     html.H3('SV Size Analysis', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
-        #     dcc.Graph(id='sv-size-boxplot')
-        # ], style={'marginBottom': '30px'}),
+        html.Div([
+            html.H3('SV Size Analysis', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+            dcc.Graph(id='sv-size-boxplot')
+        ], style={'marginBottom': '30px'}),
         
         # # Background analysis
-        # html.Div([
-        #     html.H3('Background SV Analysis', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
-        #     html.Div([
-        #         dcc.Graph(id='background-sv-comparison'),
-        #         dcc.Graph(id='background-sv-frequency')
-        #     ], style={'display': 'flex', 'gap': '20px'})
-        # ])
+        html.Div([
+            html.H3('Background SV Analysis', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+            html.Div([
+                dcc.Graph(id='background-sv-comparison'),
+                dcc.Graph(id='background-sv-frequency')
+            ], style={'display': 'flex', 'gap': '20px'})
+        ])
     ], style={'padding': '20px'})
 
 @callback(

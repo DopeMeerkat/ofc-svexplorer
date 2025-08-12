@@ -72,17 +72,20 @@ def check_database_connection(db_path=DB_PATH):
         print(f"Database connection error: {e}")
         return False
 
-def get_tracks_for_genome(chrom, db_path=DB_PATH):
+def get_tracks_for_genome(chrom, db_path=DB_PATH, include_interactions=True):
     """
-    Get gene tracks for a specific chromosome from database
+    Get gene tracks and optionally gene interaction tracks for a specific chromosome
     
     Args:
         chrom (str): Chromosome identifier
         db_path (str): Path to the SQLite database
+        include_interactions (bool): Whether to include gene interaction tracks
         
     Returns:
         list: List of track objects for the IGV browser
     """
+    from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE
+    
     tracks = []
     if not os.path.exists(db_path):
         return tracks
@@ -112,6 +115,30 @@ def get_tracks_for_genome(chrom, db_path=DB_PATH):
                 'format': 'bed',
                 'displayMode': 'EXPANDED'
             })
+        
+        # Add gene interaction track if requested (now matching circos visualization)
+        if include_interactions:
+            try:
+                interaction_data = generate_chia_pet_interactions_for_igv(chrom, db_path)
+                if interaction_data and len(interaction_data) > 0:
+                    # Create a BEDPE string for IGV
+                    bedpe_content = "\n".join(interaction_data)
+                    
+                    # Add as a track with data URL
+                    tracks.append({
+                        'name': f'Gene Interactions ({chrom})',
+                        'url': 'data:application/bedpe,' + bedpe_content,
+                        'format': 'bedpe',
+                        'displayMode': 'COLLAPSED',
+                        'height': 120,               # Taller track to show arcs
+                        'color': UCONN_NAVY,         # Default color for arcs
+                    })
+                else:
+                    print(f"No gene interaction data available for chromosome {chrom}")
+            except Exception as e:
+                print(f"Error adding gene interaction track: {e}")
+                import traceback
+                traceback.print_exc()
             
         return tracks
         
@@ -1209,3 +1236,237 @@ def get_sample_counts():
     except sqlite3.Error as e:
         print(f"Database error when getting sample counts: {e}")
         return {'mother': 0, 'father': 0, 'child': 0, 'background': 0}
+
+def get_families_by_sv(sv_id, db_path=DB_PATH):
+    """
+    Get a list of all family IDs that have a specific structural variation
+    
+    Args:
+        sv_id (str): The ID of the structural variation
+        db_path (str): Path to the SQLite database
+        
+    Returns:
+        list: List of family IDs that have the specified SV
+    """
+    if not os.path.exists(db_path):
+        print(f"Warning: Database file {db_path} not found")
+        return []
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Execute the query to find families with the specific SV
+        cursor.execute("""
+            SELECT DISTINCT p.family_id
+            FROM phenotype p
+            JOIN phenotype_svs ps ON p.bam_id = ps.sample
+            WHERE ps.id = ?
+            ORDER BY p.family_id
+        """, (sv_id,))
+        
+        families = [row['family_id'] for row in cursor.fetchall()]
+        conn.close()
+        
+        return families
+        
+    except sqlite3.Error as e:
+        print(f"Database error in get_families_by_sv: {e}")
+        return []
+
+def get_child_sv_data(child_id, csv_path='assets/cellvar_ofc_children_table.csv'):
+    """
+    Extract structural variation data for a specific child from the CSV file
+    
+    Args:
+        child_id (str): The ID of the child to extract data for
+        csv_path (str): Path to the CSV file containing SV data
+        
+    Returns:
+        pandas.DataFrame: DataFrame with SV data for the specified child
+    """
+    try:
+        import pandas as pd
+        import os
+        
+        if not os.path.exists(csv_path):
+            print(f"Error: CSV file {csv_path} not found")
+            return pd.DataFrame()
+        
+        # Load the CSV file
+        df = pd.read_csv(csv_path)
+        
+        # Filter rows where the child's ID appears in the samples column
+        child_sv_data = df[df['samples'].str.contains(child_id, na=False)]
+        
+        print(f"Found {len(child_sv_data)} SVs for child {child_id}")
+        return child_sv_data
+        
+    except Exception as e:
+        print(f"Error extracting child SV data: {e}")
+        import traceback
+        traceback.print_exc()
+        return pd.DataFrame()
+
+def generate_chia_pet_interactions_for_igv(chrom, db_path=DB_PATH):
+    """
+    Generate gene interactions for IGV browser in the interaction format
+    for the specified chromosome, with arc visualization.
+    Uses the same interaction data as the circos plot from table.csv.
+    Includes all interactions where either the source OR target gene is on the
+    specified chromosome.
+    
+    Args:
+        chrom (str): Chromosome identifier
+        db_path (str): Path to the SQLite database
+        
+    Returns:
+        list: List of interaction objects for the IGV browser
+    """
+    try:
+        from utils.styling import UCONN_LIGHT_BLUE, UCONN_NAVY
+        
+        # Read the interaction data from table.csv - same source as circos
+        table_path = os.path.join('assets', 'table.csv')
+        if not os.path.exists(table_path):
+            print(f"Error: Interaction data file not found at {table_path}")
+            return []
+        
+        try:
+            table_df = pd.read_csv(table_path)
+            print(f"Successfully loaded table.csv with {len(table_df)} rows")
+            print(f"CSV columns: {table_df.columns.tolist()}")
+            
+            # Check if the required column exists
+            if 'Interaction_partner(s)' not in table_df.columns:
+                print("Error: 'Interaction_partner(s)' column not found in table.csv")
+                print(f"Available columns: {table_df.columns.tolist()}")
+                return []
+        except Exception as e:
+            print(f"Error reading CSV file: {e}")
+            return []
+        
+        # Connect to the database to get gene coordinates
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        interactions = []
+        
+        # Count for logging
+        genes_on_chrom = 0
+        processed_interactions = 0
+        debug_log = True  # Set to True for detailed logging
+        
+        # Process each gene in the table
+        for index, row in table_df.iterrows():
+            gene_id = row['Gene']
+            interaction_partners = row.get('Interaction_partner(s)', '')
+            
+            # Skip if no interaction partners
+            if pd.isna(interaction_partners) or interaction_partners == '-' or not interaction_partners:
+                continue
+                
+            # Get the coordinates of the source gene
+            cursor.execute("""
+                SELECT id, chrom, x1, x2 
+                FROM genes 
+                WHERE id = ?
+            """, (gene_id,))
+            source_gene = cursor.fetchone()
+            
+            if not source_gene:
+                if debug_log:
+                    print(f"Warning: Gene {gene_id} not found in the database")
+                continue
+                
+            source_chrom = source_gene[1]
+            # Normalize chromosome names for comparison (strip 'chr' prefix if present)
+            normalized_source_chrom = source_chrom.lower().replace('chr', '')
+            normalized_requested_chrom = str(chrom).lower().replace('chr', '')
+            
+            source_on_requested_chrom = (normalized_source_chrom == normalized_requested_chrom)
+            
+            # We'll check if either source OR target is on the requested chromosome
+            # For now, just note if the source is on the requested chromosome
+            if source_on_requested_chrom:
+                genes_on_chrom += 1
+            
+            if debug_log:
+                print(f"Source chromosome comparison: DB={source_chrom}, requested={chrom}, normalized comparison: {normalized_source_chrom}={normalized_requested_chrom}: {source_on_requested_chrom}")
+                
+            # Process each interaction partner
+            partners = [p.strip() for p in interaction_partners.split(',')]
+            
+            for partner in partners:
+                # Handle family names (e.g., "SMAD family")
+                if "family" in partner.lower():
+                    family_prefix = partner.split()[0]
+                    if debug_log:
+                        print(f"Processing family: {partner} (prefix: {family_prefix}) for source gene {gene_id}")
+                    
+                    # Query for genes that start with this prefix
+                    cursor.execute("""
+                        SELECT id, chrom, x1, x2 
+                        FROM genes 
+                        WHERE id LIKE ?
+                    """, (f"{family_prefix}%",))
+                    family_genes = cursor.fetchall()
+                    
+                    if debug_log:
+                        print(f"Found {len(family_genes)} genes in the {family_prefix} family")
+                    
+                    for family_gene in family_genes:
+                        target_chrom = family_gene[1]
+                        target_on_requested_chrom = (target_chrom == chrom)
+                        
+                        # Include the interaction if either the source or target is on the requested chromosome
+                        if source_on_requested_chrom or target_on_requested_chrom:
+                            # Format as simple BEDPE-style format that IGV can definitely understand
+                            interaction = f"{source_chrom}\t{source_gene[2]}\t{source_gene[3]}\t{target_chrom}\t{family_gene[2]}\t{family_gene[3]}\t{source_gene[0]}-{family_gene[0]}"
+                            interactions.append(interaction)
+                            processed_interactions += 1
+                else:
+                    # Direct partner lookup
+                    if debug_log:
+                        print(f"Looking up direct partner: {partner} for source gene {gene_id}")
+                        
+                    cursor.execute("""
+                        SELECT id, chrom, x1, x2 
+                        FROM genes 
+                        WHERE id = ?
+                    """, (partner,))
+                    target_gene = cursor.fetchone()
+                    
+                    if not target_gene:
+                        if debug_log:
+                            print(f"Warning: Interaction partner {partner} for gene {gene_id} not found in database")
+                        continue
+                        
+                    target_chrom = target_gene[1]
+                    target_on_requested_chrom = (target_chrom == chrom)
+                    
+                    if debug_log:
+                        print(f"Found partner gene {partner} on chromosome {target_chrom}")
+                        print(f"Source on requested chrom: {source_on_requested_chrom}, Target on requested chrom: {target_on_requested_chrom}")
+                    
+                    # Include the interaction if either the source or target is on the requested chromosome
+                    if source_on_requested_chrom or target_on_requested_chrom:
+                        # Format as simple BEDPE-style format that IGV can definitely understand
+                        interaction = f"{source_chrom}\t{source_gene[2]}\t{source_gene[3]}\t{target_chrom}\t{target_gene[2]}\t{target_gene[3]}\t{source_gene[0]}-{target_gene[0]}"
+                        interactions.append(interaction)
+                        processed_interactions += 1
+                        if debug_log:
+                            print(f"Added interaction: {source_gene[0]}-{target_gene[0]} between chr{source_chrom} and chr{target_chrom}")
+        
+        conn.close()
+        
+        print(f"Gene interactions for chromosome {chrom}: {processed_interactions} interactions (involving genes on this chromosome)")
+        
+        return interactions
+        
+    except Exception as e:
+        print(f"Error generating gene interactions for IGV: {e}")
+        import traceback
+        traceback.print_exc()
+        return []  # Return empty list instead of empty string

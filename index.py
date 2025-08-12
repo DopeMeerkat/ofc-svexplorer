@@ -17,7 +17,7 @@ from pages import summary
 from pages import genome_browser
 from pages import table
 from pages import image_pages
-from pages import network
+# from pages import network
 from pages import circos
 from pages import family_genomes
 from pages import population_svs
@@ -103,16 +103,19 @@ def display_page(pathname, selected_gene):
     if pathname == '/':
         # When navigating directly via tab, don't pass any gene
         return genome_browser.page_layout(), '/'
-    if pathname == '/image1':
-        return image_pages.image1_page(), '/image1'
-    if pathname == '/image2':
-        return image_pages.image2_page(), '/image2'
-    if pathname == '/image3':
-        return image_pages.image3_page(), '/image3'
-    if pathname == '/image4':
-        return image_pages.image4_page(), '/image4'
-    if pathname == '/network':
-        return network.page_layout(), '/network'
+    if pathname == '/go-terms':
+        return image_pages.go_terms_page(), '/go-terms'
+    # Image pages commented out as requested
+    # if pathname == '/image1':
+    #     return image_pages.image1_page(), '/image1'
+    # if pathname == '/image2':
+    #     return image_pages.image2_page(), '/image2'
+    # if pathname == '/image3':
+    #     return image_pages.image3_page(), '/image3'
+    # if pathname == '/image4':
+    #     return image_pages.image4_page(), '/image4'
+    # if pathname == '/network':
+    #     return network.page_layout(), '/network'
     if pathname == '/circos':
         return circos.page_layout(), '/circos'
     if pathname == '/family':

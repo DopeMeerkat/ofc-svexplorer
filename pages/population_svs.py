@@ -397,6 +397,7 @@ def create_background_track(chrom):
         dict: Track object for IGV browser
     """
     try:
+        # Connect to database
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -448,26 +449,303 @@ def create_background_track(chrom):
             else:
                 sv_counts[sv_id] = 1
         
-        # Create track features with count information
+        conn.close()
+        
+        # Load additional information from CSV file if the chromosome is 19
+        # This is an enhancement to add more detailed descriptions
+        sv_additional_info = {}
+        if chrom == '19':
+            try:
+                import pandas as pd
+                import os
+                import numpy as np
+                
+                csv_path = os.path.join('assets', 'cellvar_chr19_table.csv')
+                if os.path.exists(csv_path):
+                    print(f"\n===== CSV FILE INFO =====")
+                    print(f"CSV file exists at: {csv_path}")
+                    # Check file size
+                    import os
+                    file_size = os.path.getsize(csv_path)
+                    print(f"File size: {file_size} bytes")
+                    
+                    # Read and inspect the CSV file
+                    print("Loading CSV data...")
+                    
+                    # Load the CSV with proper handling of missing values
+                    df = pd.read_csv(csv_path)
+                    print(f"CSV loaded successfully with {len(df)} rows and {len(df.columns)} columns")
+                    print(f"CSV columns: {df.columns.tolist()}")
+                    print(f"Number of unique SV IDs in CSV: {df['sv_id'].nunique()}")
+                    print(f"First few SV IDs: {df['sv_id'].unique()[:5].tolist()}")
+                    
+                    df = df.replace({np.nan: None})  # Replace NaN with None for easier handling
+                    
+                    # For debugging CSV SV IDs
+                    sample_svs = []
+                    
+                    # Group by SV ID to collect all information
+                    for sv_id, group in df.groupby('sv_id'):
+                        # Debug: Check SV ID format in CSV
+                        if len(sample_svs) < 5:
+                            sample_svs.append(sv_id)
+                        
+                        if sv_id not in sv_additional_info:
+                            # Get the first row for basic info
+                            first_row = group.iloc[0]
+                            
+                            # Store basic SV information with safe gets
+                            sv_additional_info[sv_id] = {
+                                'gene_names': set(filter(None, group['gene_name'].unique())),
+                                'sv_type': first_row.get('sv_type', 'Unknown'),
+                                'functional_likelihood': float(first_row.get('functional_likelihood', 0)),
+                                'frequency': float(first_row.get('frequency', 0)),
+                                'sample_count': int(first_row.get('sample_count', 0)),
+                                'regulatory_types': set(filter(None, group['regulatory_type'].unique() if 'regulatory_type' in group else [])),
+                                'regulatory_cell_types': set(filter(None, group['regulatory_cell_type'].unique() if 'regulatory_cell_type' in group else [])),
+                                'expected_value': float(first_row.get('expected_value', 0)),
+                                # Additional detailed information
+                                'samples': first_row.get('samples', ""),
+                                'regulatory_scores': {},
+                                'regulatory_ids': set(filter(None, group['regulatory_id'].unique() if 'regulatory_id' in group else [])),
+                                'regulatory_details': []
+                            }
+                            
+                            # Collect regulatory scores for each cell type
+                            for _, row in group.iterrows():
+                                cell_type = row.get('regulatory_cell_type')
+                                if cell_type and 'regulatory_cell_score' in row and row['regulatory_cell_score'] is not None:
+                                    if cell_type not in sv_additional_info[sv_id]['regulatory_scores']:
+                                        sv_additional_info[sv_id]['regulatory_scores'][cell_type] = float(row['regulatory_cell_score'])
+                                
+                                # Collect detailed regulatory information
+                                if all(k in row and row[k] is not None for k in ['regulatory_id', 'regulatory_type', 'regulatory_score']):
+                                    sv_additional_info[sv_id]['regulatory_details'].append({
+                                        'id': row['regulatory_id'],
+                                        'type': row['regulatory_type'],
+                                        'score': float(row['regulatory_score']),
+                                        'cell_type': row.get('regulatory_cell_type', ''),
+                                        'cell_score': float(row.get('regulatory_cell_score', 0)) if row.get('regulatory_cell_score') is not None else 0
+                                    })
+                    
+                    print(f"Loaded additional info for {len(sv_additional_info)} SVs from CSV")
+                    
+                    # Debug output for sv_additional_info
+                    print("\n===== DEBUGGING SV ADDITIONAL INFO =====")
+                    print(f"Total SVs with additional info: {len(sv_additional_info)}")
+                    
+                    # Print first 3 SVs as examples
+                    sample_svs = list(sv_additional_info.keys())[:3]
+                    for i, sv_id in enumerate(sample_svs):
+                        info = sv_additional_info[sv_id]
+                        print(f"\n--- SV #{i+1}: {sv_id} ---")
+                        print(f"Gene Names: {info['gene_names']}")
+                        print(f"SV Type: {info['sv_type']}")
+                        print(f"Functional Likelihood: {info['functional_likelihood']}")
+                        print(f"Frequency: {info['frequency']}")
+                        print(f"Sample Count: {info['sample_count']}")
+                        print(f"Regulatory Types: {info['regulatory_types']}")
+                        print(f"Regulatory Cell Types: {info['regulatory_cell_types']}")
+                        print(f"Expected Value: {info['expected_value']}")
+                        print(f"Samples: {info['samples'][:100]}..." if len(info['samples']) > 100 else f"Samples: {info['samples']}")
+                        print(f"Regulatory Scores: {info['regulatory_scores']}")
+                        print(f"Regulatory IDs: {info['regulatory_ids']}")
+                        print(f"Regulatory Details: {len(info['regulatory_details'])} entries")
+                        if info['regulatory_details']:
+                            print(f"  First Regulatory Detail: {info['regulatory_details'][0]}")
+                    
+                    print("\n===== END OF DEBUGGING INFO =====\n")
+                    
+                    # Optionally, save the full debug output to a file for detailed inspection
+                    try:
+                        import json
+                        
+                        # Convert sets to lists for JSON serialization
+                        debug_info = {}
+                        for sv_id, info in sv_additional_info.items():
+                            debug_info[sv_id] = {k: (list(v) if isinstance(v, set) else v) for k, v in info.items()}
+                        
+                        with open('sv_debug_info.json', 'w') as f:
+                            json.dump(debug_info, f, indent=2, default=str)
+                        print("Detailed debug info written to sv_debug_info.json")
+                    except Exception as e:
+                        print(f"Could not save debug info to file: {e}")
+            except Exception as e:
+                print(f"Error loading additional SV info from CSV: {e}")
+                # Add traceback for better debugging
+                import traceback
+                traceback.print_exc()
+        
+        # Create track features with count and additional information
         features = []
+        
+        # Debug: Check for ID mismatches between database SVs and CSV SVs
+        db_sv_ids = set(sv_counts.keys())
+        csv_sv_ids = set(sv_additional_info.keys())
+        common_ids = db_sv_ids.intersection(csv_sv_ids)
+        
+        print(f"\n===== ID MATCHING DEBUG =====")
+        print(f"SVs from database: {len(db_sv_ids)}")
+        print(f"SVs from CSV: {len(csv_sv_ids)}")
+        print(f"SVs in both: {len(common_ids)}")
+        
+        # Try to fix ID format mismatches if there are few or no matches
+        if len(common_ids) < min(len(db_sv_ids), len(csv_sv_ids)) * 0.1:  # Less than 10% match
+            print("WARNING: Very few matching IDs between database and CSV!")
+            
+            # Show sample IDs from both sources for comparison
+            print("\nSample DB IDs:")
+            db_samples = list(db_sv_ids)[:5]
+            for sv_id in db_samples:
+                print(f"  - {sv_id}")
+            
+            print("\nSample CSV IDs:")
+            csv_samples = list(csv_sv_ids)[:5]
+            for sv_id in csv_samples:
+                print(f"  - {sv_id}")
+            
+            # Try to create a mapping between CSV and DB IDs
+            sv_id_mapping = {}
+            
+            # Check if CSV IDs might need a prefix
+            if len(common_ids) == 0:
+                # Try common transformations
+                transformations = [
+                    # Add C_ prefix
+                    lambda x: f"C_{x}" if not x.startswith("C_") else x,
+                    # Remove C_ prefix
+                    lambda x: x[2:] if x.startswith("C_") else x,
+                    # Try with just the numeric part
+                    lambda x: ''.join(c for c in x if c.isdigit()),
+                ]
+                
+                # Test transformations on sample IDs
+                for transform in transformations:
+                    csv_transformed = {transform(id) for id in csv_samples}
+                    matches = csv_transformed.intersection(db_samples)
+                    if matches:
+                        print(f"Found potential ID transformation: {len(matches)} matches")
+                        # Apply this transformation to all CSV IDs
+                        transformed_mapping = {}
+                        for csv_id in csv_sv_ids:
+                            transformed_id = transform(csv_id)
+                            if transformed_id in db_sv_ids:
+                                transformed_mapping[transformed_id] = sv_additional_info[csv_id]
+                        
+                        if transformed_mapping:
+                            print(f"Created mapping for {len(transformed_mapping)} IDs")
+                            sv_additional_info = transformed_mapping
+                            break
+        
         for sv_id, count in sv_counts.items():
             details = sv_details[sv_id]
             
             # Format population information for description
             pop_info_list = list(sv_pop_info.get(sv_id, set()))
-            pop_str = f"{','.join(pop_info_list)}<br>" if pop_info_list else "".replace(',', '<br>')
+            pop_str = f"{','.join(pop_info_list)}<br>" if pop_info_list else ""
+            
+            # Add additional information from CSV if available
+            additional_info = ""
+            if sv_id in sv_additional_info:
+                print(f"Processing additional info for SV: {sv_id}")
+                info = sv_additional_info[sv_id]
+                
+                # Format gene names
+                gene_str = ", ".join(info['gene_names']) if info['gene_names'] else ""
+                if gene_str:
+                    additional_info += f"Associated genes: {gene_str}<br>"
+                
+                # Add functional and regulatory information
+                if 'functional_likelihood' in info:
+                    additional_info += f"Functional likelihood: {info['functional_likelihood']:.3f}<br>"
+                if 'expected_value' in info:
+                    additional_info += f"Expected value: {info['expected_value']:.3f}<br>"
+                if 'frequency' in info:
+                    additional_info += f"Frequency: {info['frequency']:.6f}<br>"
+                if 'sample_count' in info and info['sample_count'] > 0:
+                    additional_info += f"Sample count: {info['sample_count']}<br>"
+                
+                # Add regulatory information
+                reg_types = ", ".join(info['regulatory_types']) if info['regulatory_types'] else ""
+                if reg_types:
+                    additional_info += f"Regulatory elements: {reg_types}<br>"
+                
+                cell_types = ", ".join(info['regulatory_cell_types']) if info['regulatory_cell_types'] else ""
+                if cell_types:
+                    additional_info += f"Cell types: {cell_types}<br>"
+                
+                # Add regulatory scores by cell type
+                if info.get('regulatory_scores') and len(info['regulatory_scores']) > 0:
+                    additional_info += "<br><b>Regulatory scores by cell type:</b><br>"
+                    for cell_type, score in info['regulatory_scores'].items():
+                        if cell_type:  # Ensure cell type is not empty
+                            additional_info += f"- {cell_type}: {score:.3f}<br>"
+                
+                # Add sample information
+                if info.get('samples'):
+                    sample_list = info['samples'].split(',')
+                    sample_list = [s.strip() for s in sample_list if s.strip()]  # Clean up empty entries
+                    if sample_list:
+                        if len(sample_list) <= 5:
+                            additional_info += f"<br><b>Samples:</b> {', '.join(sample_list)}<br>"
+                        else:
+                            # Show first 5 samples and count
+                            additional_info += f"<br><b>Samples:</b> {', '.join(sample_list[:5])}... (+{len(sample_list)-5} more)<br>"
+                
+                # Add detailed regulatory information for specialists
+                if info.get('regulatory_details') and len(info['regulatory_details']) > 0:
+                    additional_info += "<br><b>Detailed Regulatory Information:</b><br>"
+                    # Limit to the top 3 regulatory elements to avoid too much information
+                    for i, reg_detail in enumerate(info['regulatory_details'][:3]):
+                        detail_line = f"- {reg_detail.get('type', 'Unknown')} ({reg_detail.get('id', 'Unknown')})"
+                        
+                        if 'score' in reg_detail:
+                            detail_line += f": Score {reg_detail['score']:.3f}"
+                        
+                        if reg_detail.get('cell_type'):
+                            detail_line += f", Cell: {reg_detail['cell_type']}"
+                            if 'cell_score' in reg_detail and reg_detail['cell_score']:
+                                score_value = float(reg_detail['cell_score'])
+                                detail_line += f" (Score: {score_value:.3f})"
+                                # try:
+                                #     score_value = float(reg_detail['cell_score'])
+                                #     detail_line += f" (Score: {score_value:.3f})"
+                                # except (ValueError, TypeError):
+                                #     # Skip score formatting if conversion fails
+                                #     pass
+                        
+                        additional_info += detail_line + "<br>"
+                    
+                    # Indicate if there are more details
+                    if len(info['regulatory_details']) > 3:
+                        additional_info += f"... (+{len(info['regulatory_details'])-3} more regulatory elements)<br>"
+            
+            # Create the description with both standard and additional info
+            description = f"<b>Basic Information:</b><br>"
+            description += f"Type: {details['type']}<br>"
+            description += f"Size: {details['end'] - details['start']} bp<br>"
+            description += f"Count: {count}<br>"
+            
+            # Add population information if available
+            if pop_str:
+                description += f"<br><b>Population Information:</b><br>{pop_str}"
+            
+            # Add the additional info if available
+            if additional_info:
+                description += f"<br><b>Extended Information:</b><br>{additional_info}"
+                print(f"Added extended information to SV: {sv_id}, info length: {len(additional_info)}")
+            else:
+                print(f"No extended information available for SV: {sv_id}")
             
             feature = {
                 'chr': details['chr'],
                 'start': details['start'],
                 'end': details['end'],
                 'name': sv_id,
-                'description': f"Type: {details['type']}<br>{pop_str}Count: {count}<br>Size: {details['end'] - details['start']} bp",
+                'description': description,
                 'type': details['type']
             }
             features.append(feature)
-        
-        conn.close()
         
         # Create the track
         track = {

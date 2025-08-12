@@ -52,6 +52,21 @@ def page_layout(selected_gene=None):
                     placeholder='Select a chromosome...',
                     style=uconn_styles['dropdown']
                 ),
+                html.Div([
+                    dcc.Checklist(
+                        id='show-interactions-checkbox',
+                        options=[
+                            {'label': ' Show Gene Interactions', 'value': 'show_interactions'}
+                        ],
+                        value=['show_interactions'],
+                        style={'marginTop': '10px', 'marginBottom': '5px', 'fontWeight': 'bold'}
+                    ),
+                    html.P([
+                        'Displays long-range interactions between genes as curved arcs, identical to those shown in the Interactions (Circos) tab. ',
+                        html.Br(),
+                        'These interactions represent functional relationships between genes based on literature review and experimental data.'
+                    ], style={'fontSize': '13px', 'fontStyle': 'italic', 'marginLeft': '24px', 'marginTop': '2px'})
+                ])
             ], style={'marginBottom': '20px'}),
             dcc.Loading(
                 id='default-igv-container',
@@ -79,11 +94,12 @@ def page_layout(selected_gene=None):
 @callback(
     Output('default-igv-container', 'children'),
     Input('default-igv-genome-select', 'value'),
+    Input('show-interactions-checkbox', 'value'),
     State('current-locus', 'data')
 )
-def return_igv(chrom, locus):
+def return_igv(chrom, interaction_checkbox_value, locus):
     """
-    Return the IGV component for the selected chromosome
+    Return the IGV component for the selected chromosome with optional ChIA-PET interactions
     """
     if not chrom:
         return html.Div(
@@ -91,16 +107,58 @@ def return_igv(chrom, locus):
             style={'padding': '20px', 'textAlign': 'center', 'color': UCONN_NAVY}
         )
     
+    # Determine if interactions should be included
+    include_interactions = 'show_interactions' in interaction_checkbox_value if interaction_checkbox_value else False
+    
     # Get tracks for selected chromosome
-    tracks = get_tracks_for_genome(chrom)
+    try:
+        tracks = get_tracks_for_genome(chrom, include_interactions=include_interactions)
+        print(f"Retrieved {len(tracks)} tracks for chromosome {chrom}")
+        
+        # Debug the interaction track if included
+        if include_interactions:
+            interaction_tracks = [t for t in tracks if t.get('format') == 'interaction']
+            if interaction_tracks:
+                for i, track in enumerate(interaction_tracks):
+                    print(f"Interaction track {i+1}: {track.get('name')}")
+                    features = track.get('features', [])
+                    print(f"  - Features: {len(features)} interactions")
+                    if features:
+                        print(f"  - Sample feature: {features[0]}")
+            else:
+                print(f"No interaction tracks found for chromosome {chrom}")
+    except Exception as e:
+        print(f"Error getting tracks: {e}")
+        import traceback
+        traceback.print_exc()
+        tracks = []
     
     # Set view location - use full locus if available, otherwise default to first 1Mb
     view_locus = locus if locus and locus.startswith(f"{chrom}:") else f"{chrom}:1-1000000"
     print(f"Setting IGV view to: {view_locus}")
+    print(f"Including gene interactions: {include_interactions}")
+    
+    # Track count feedback
+    track_info = f"{len(tracks)} track(s) loaded"
+    
+    # Check for empty tracks that might indicate an error
+    if include_interactions and len([t for t in tracks if t.get('format') == 'interaction']) == 0:
+        interaction_feedback = html.Div([
+            html.P(
+                "Note: No interaction data available for this chromosome. Try selecting a different chromosome.",
+                style={'color': '#FF6600', 'fontStyle': 'italic', 'margin': '10px 0'}
+            )
+        ])
+    else:
+        interaction_feedback = html.Div()
     
     return html.Div([
         html.Div([
             html.H3(f"Viewing Chromosome: {chrom}", style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+            html.Div([
+                html.P(track_info, style={'fontSize': '14px', 'color': UCONN_NAVY, 'marginBottom': '10px'}),
+                interaction_feedback
+            ]),
             dashbio.Igv(
                 id='default-igv',
                 genome='hg38',  # Using hg38 as reference, adjust if needed

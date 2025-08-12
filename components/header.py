@@ -46,39 +46,15 @@ def create_uconn_header():
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
-                dcc.Tab(label='Visualization Upload', value='/visualization-upload',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Genome Browser', value='/',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
                 dcc.Tab(label='Table', value='/table',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
-                dcc.Tab(label='Image 1', value='/image1',
+                dcc.Tab(label='Interactions', value='/circos',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
-                dcc.Tab(label='Image 2', value='/image2',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Image 3', value='/image3',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Image 4', value='/image4',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Network', value='/network',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Circos Plot', value='/circos',
+                dcc.Tab(label='Genome Browser', value='/',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
@@ -90,6 +66,31 @@ def create_uconn_header():
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
+                dcc.Tab(label='GO Term Analysis', value='/go-terms',
+                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                ),
+                dcc.Tab(label='Visualization Upload', value='/visualization-upload',
+                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                ),
+                # Image tabs commented out as requested
+                # dcc.Tab(label='Image 1', value='/image1',
+                #         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                #         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                # ),
+                # dcc.Tab(label='Image 2', value='/image2',
+                #         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                #         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                # ),
+                # dcc.Tab(label='Image 3', value='/image3',
+                #         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                #         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                # ),
+                # dcc.Tab(label='Image 4', value='/image4',
+                #         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                #         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                # ),
             ],
             style={'marginTop': '8px', 'backgroundColor': UCONN_NAVY, 'borderRadius': '0', 'border': f'1px solid {UCONN_NAVY}', 'width': '100%'},
             colors={
