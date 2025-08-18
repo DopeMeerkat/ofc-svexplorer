@@ -8,11 +8,16 @@ import plotly.express as px
 import plotly.graph_objects as go
 import sqlite3
 import pandas as pd
+import io
+import os
+import glob
 
 from app import app
 from components.population_gene_search import create_population_gene_search
 from utils.styling import uconn_styles, UCONN_NAVY, UCONN_LIGHT_BLUE
-from utils.database import DB_PATH
+from utils.database import DB_PATH, get_all_gene_interactions
+# No longer directly importing the generation function
+# from assets.generate_proband_sv_inheritance import get_proband_sv_inheritance
 
 def get_sv_summary_stats():
     """Get summary statistics for structural variations"""
@@ -88,6 +93,73 @@ def get_chromosome_distribution():
         print(f"Database error: {e}")
         return None
 
+def load_proband_sv_inheritance():
+    """
+    Load proband SV inheritance data from the pre-generated CSV file
+    
+    Returns:
+        tuple: (DataFrame with inheritance information, total proband count)
+    """
+    try:
+        # Get the most recent CSV file from the assets directory
+        csv_pattern = os.path.join(os.path.dirname(__file__), '..', 'assets', 'proband_sv_inheritance*.csv')
+        csv_files = glob.glob(csv_pattern)
+        
+        if not csv_files:
+            # Use the default file if no timestamped files are found
+            default_csv = os.path.join(os.path.dirname(__file__), '..', 'assets', 'proband_sv_inheritance.csv')
+            if os.path.exists(default_csv):
+                csv_file = default_csv
+            else:
+                print("No proband SV inheritance CSV file found")
+                return pd.DataFrame(), 0
+        else:
+            # Use the most recent file based on modification time
+            csv_file = max(csv_files, key=os.path.getmtime)
+            
+        print(f"Loading proband SV inheritance data from {csv_file}")
+        df = pd.read_csv(csv_file)
+        
+        # Rename columns back to the original names if they were renamed in the CSV
+        column_mapping = {
+            'SV ID': 'sv_id',
+            'Proband Count': 'proband_count',
+            'Percentage of Probands (%)': 'proband_percentage',
+            'Inherited From Father': 'father_count',
+            'Inherited From Mother': 'mother_count',
+            'Inherited From Both Parents': 'both_parents_count',
+            'SV Type': 'sv_type',
+            'Chromosome': 'sv_chrom',
+            'Start Position': 'sv_start',
+            'End Position': 'sv_end',
+            'Length (bp)': 'sv_length',
+            'Associated Gene': 'gene'
+        }
+        
+        # Apply the column renaming if needed
+        for csv_col, code_col in column_mapping.items():
+            if csv_col in df.columns:
+                df = df.rename(columns={csv_col: code_col})
+                
+        # Get the total proband count from the first row's percentage
+        if 'proband_percentage' in df.columns and not df.empty:
+            total_proband_count = int(round(df.iloc[0]['proband_count'] / df.iloc[0]['proband_percentage'] * 100, 0))
+        else:
+            # If percentage column doesn't exist or DataFrame is empty, query the database
+            conn = sqlite3.connect(DB_PATH)
+            total_query = "SELECT COUNT(DISTINCT bam_id) AS total_probands FROM phenotype WHERE proband = 1"
+            total_df = pd.read_sql_query(total_query, conn)
+            conn.close()
+            total_proband_count = total_df['total_probands'].iloc[0]
+            
+        return df, total_proband_count
+        
+    except Exception as e:
+        print(f"Error loading proband SV inheritance data: {e}")
+        import traceback
+        traceback.print_exc()
+        return pd.DataFrame(), 0
+
 def get_chromosome_distribution_by_category():
     """Get percentage distribution of SVs across chromosomes, separated by category"""
     try:
@@ -148,12 +220,12 @@ def get_chromosome_distribution_by_category():
         if not child_df.empty:
             total_child = child_df['count'].sum()
             child_df['percentage'] = child_df['count'] / total_child * 100
-        
+            
         # Background percentages
         if not background_df.empty:
             total_background = background_df['count'].sum()
             background_df['percentage'] = background_df['count'] / total_background * 100
-        
+            
         # Combine all dataframes
         combined_df = pd.concat([mother_df, father_df, child_df, background_df])
         
@@ -162,89 +234,112 @@ def get_chromosome_distribution_by_category():
         print(f"Database error: {e}")
         return None
 
-def get_top_svs_by_category():
-    """Get top 20 most frequent SVs for children with comparison to other categories"""
+def get_top_frequent_svs_in_children():
+    """Get the top most frequent SVs in children"""
     try:
         conn = sqlite3.connect(DB_PATH)
-        
-        # Get the total counts for each category to use for percentage calculations
-        category_totals = {}
-        
-        # Total SVs for children
         cursor = conn.cursor()
+        
+        # Get total counts for each category
         cursor.execute("""
-            SELECT COUNT(*) 
+            SELECT 
+                'Child' as category,
+                COUNT(DISTINCT ps.id) as total
             FROM phenotype_svs ps
             JOIN phenotype p ON ps.sample = p.bam_id
             WHERE p.child = 1
         """)
-        category_totals['Child'] = cursor.fetchone()[0]
+        child_total = cursor.fetchone()[1]
         
-        # Total SVs for mothers
         cursor.execute("""
-            SELECT COUNT(*) 
+            SELECT 
+                'Mother' as category,
+                COUNT(DISTINCT ps.id) as total
             FROM phenotype_svs ps
             JOIN phenotype p ON ps.sample = p.bam_id
             WHERE p.gender = 'F' AND p.child = 0
         """)
-        category_totals['Mother'] = cursor.fetchone()[0]
+        mother_total = cursor.fetchone()[1]
         
-        # Total SVs for fathers
         cursor.execute("""
-            SELECT COUNT(*) 
+            SELECT 
+                'Father' as category,
+                COUNT(DISTINCT ps.id) as total
             FROM phenotype_svs ps
             JOIN phenotype p ON ps.sample = p.bam_id
             WHERE p.gender = 'M' AND p.child = 0
         """)
-        category_totals['Father'] = cursor.fetchone()[0]
+        father_total = cursor.fetchone()[1]
         
-        # Total SVs for background
         cursor.execute("""
-            SELECT COUNT(*) 
+            SELECT 
+                'Background' as category,
+                COUNT(DISTINCT id) as total
             FROM background_svs
         """)
-        category_totals['Background'] = cursor.fetchone()[0]
+        background_total = cursor.fetchone()[1]
         
-        # Get top 20 most frequent SV IDs for children
-        child_svs = pd.read_sql_query("""
-            SELECT ps.id, COUNT(*) as count
+        # Store totals
+        category_totals = {
+            'Child': child_total,
+            'Mother': mother_total,
+            'Father': father_total,
+            'Background': background_total
+        }
+        
+        # Get top SVs in children by count
+        cursor.execute("""
+            SELECT id, COUNT(DISTINCT sample) as count
             FROM phenotype_svs ps
             JOIN phenotype p ON ps.sample = p.bam_id
             WHERE p.child = 1
-            GROUP BY ps.id
+            GROUP BY id
             ORDER BY count DESC
             LIMIT 20
-        """, conn)
+        """)
         
-        # Get list of top 20 SV IDs to use in subsequent queries
-        top_sv_ids = tuple(child_svs['id'].tolist())
+        top_svs = cursor.fetchall()
+        top_sv_ids = tuple([sv[0] for sv in top_svs])
         
-        if not top_sv_ids:
-            return None
-            
-        # If there's only one SV ID, adjust the tuple format for SQL
+        if len(top_sv_ids) == 0:
+            conn.close()
+            return None, None
+        
+        # Format the IN clause properly
         if len(top_sv_ids) == 1:
-            top_sv_ids = f"('{top_sv_ids[0]}')"
+            top_sv_ids = f"({top_sv_ids[0]})"
+        else:
+            top_sv_ids = str(top_sv_ids)
         
-        # Get counts for these SVs in mothers
+        # Get child SVs with counts
+        child_svs = pd.read_sql_query(f"""
+            SELECT id, COUNT(DISTINCT sample) as count
+            FROM phenotype_svs ps
+            JOIN phenotype p ON ps.sample = p.bam_id
+            WHERE p.child = 1 AND id IN {top_sv_ids}
+            GROUP BY id
+            ORDER BY count DESC
+        """, conn)
+        
+        # Get mother SVs with counts
         mother_svs = pd.read_sql_query(f"""
-            SELECT ps.id, COUNT(*) as count
+            SELECT id, COUNT(DISTINCT sample) as count
             FROM phenotype_svs ps
             JOIN phenotype p ON ps.sample = p.bam_id
-            WHERE p.gender = 'F' AND p.child = 0 AND ps.id IN {top_sv_ids}
-            GROUP BY ps.id
+            WHERE p.gender = 'F' AND p.child = 0 AND id IN {top_sv_ids}
+            GROUP BY id
         """, conn)
         
-        # Get counts for these SVs in fathers
+        # Get father SVs with counts
         father_svs = pd.read_sql_query(f"""
-            SELECT ps.id, COUNT(*) as count
+            SELECT id, COUNT(DISTINCT sample) as count
             FROM phenotype_svs ps
             JOIN phenotype p ON ps.sample = p.bam_id
-            WHERE p.gender = 'M' AND p.child = 0 AND ps.id IN {top_sv_ids}
-            GROUP BY ps.id
+            WHERE p.gender = 'M' AND p.child = 0 AND id IN {top_sv_ids}
+            GROUP BY id
         """, conn)
         
-        # Get counts for these SVs in background
+        # Get background SVs with counts
         background_svs = pd.read_sql_query(f"""
             SELECT id, COUNT(*) as count
             FROM background_svs
@@ -302,11 +397,13 @@ def get_top_svs_by_category():
         result_df['father_pct'] = (result_df['father_count'] / category_totals['Father'] * 100).round(2)
         result_df['background_pct'] = (result_df['background_count'] / category_totals['Background'] * 100).round(2)
         
-        return result_df
+        return result_df, category_totals
         
     except sqlite3.Error as e:
         print(f"Database error: {e}")
-        return None
+        import traceback
+        traceback.print_exc()
+        return None, None
 
 def page_layout():
     """Create the dashboard page layout"""
@@ -385,135 +482,125 @@ def page_layout():
             ], style={'marginBottom': '15px'})
         ], style={'marginBottom': '30px'}),
         
-        # # Size analysis
+        # Proband SV Inheritance Analysis
         html.Div([
-            html.H3('SV Size Analysis', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
-            dcc.Graph(id='sv-size-boxplot')
+            html.H3('Proband SV Inheritance Analysis', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+            html.P('This section displays the inheritance patterns of structural variations found in probands. For each SV, the table shows how many cases are inherited from the father, mother, or both parents.',
+                  style={'marginBottom': '15px'}),
+            
+            # Loading container for the table
+            dcc.Loading(
+                id="proband-inheritance-loading",
+                type="circle",
+                color=UCONN_NAVY,
+                children=[
+                    html.Div(id='proband-inheritance-table-container', style={'marginBottom': '20px'})
+                ]
+            ),
+            
+            html.Div([
+                html.Button(
+                    [
+                        html.I(className="fa fa-download", style={'marginRight': '10px'}),
+                        "Download Proband SV Inheritance Data (CSV)"
+                    ],
+                    id='download-proband-sv-button',
+                    style={
+                        'backgroundColor': UCONN_NAVY,
+                        'color': 'white',
+                        'border': 'none',
+                        'padding': '10px 15px',
+                        'borderRadius': '4px',
+                        'cursor': 'pointer',
+                        'display': 'flex',
+                        'alignItems': 'center',
+                        'justifyContent': 'center',
+                        'width': 'fit-content'
+                    }
+                ),
+                dcc.Download(id='download-proband-sv-data')
+            ], style={'marginBottom': '20px'})
         ], style={'marginBottom': '30px'}),
         
-        # # Background analysis
+        # Gene Interactions Section
         html.Div([
-            html.H3('Background SV Analysis', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+            html.H3('Gene Interactions', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+            html.P('This section provides information about long-range gene interactions identified in the dataset. These interactions represent functional relationships between genes based on literature review and experimental data, identical to those shown in the Circos plot and IGV browser.',
+                  style={'marginBottom': '15px'}),
+            
             html.Div([
-                dcc.Graph(id='background-sv-comparison'),
-                dcc.Graph(id='background-sv-frequency')
-            ], style={'display': 'flex', 'gap': '20px'})
-        ])
-    ], style={'padding': '20px'})
+                html.Button(
+                    [
+                        html.I(className="fa fa-download", style={'marginRight': '10px'}),
+                        "Download All Gene Interactions (CSV)"
+                    ],
+                    id='download-interactions-button',
+                    style={
+                        'backgroundColor': UCONN_NAVY,
+                        'color': 'white',
+                        'border': 'none',
+                        'padding': '10px 15px',
+                        'borderRadius': '4px',
+                        'cursor': 'pointer',
+                        'display': 'flex',
+                        'alignItems': 'center',
+                        'justifyContent': 'center',
+                        'width': 'fit-content'
+                    }
+                ),
+                dcc.Download(id='download-gene-interactions')
+            ], style={'marginBottom': '20px'})
+        ], style={'marginBottom': '30px'}),
+        
+        # # # Background analysis
+        # html.Div([
+        #     html.H3('Background SV Analysis', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+        #     html.Div([
+        #         dcc.Graph(id='background-sv-comparison'),
+        #         dcc.Graph(id='background-sv-frequency')
+        #     ], style={'display': 'flex', 'gap': '20px'})
+        # ], style={'marginBottom': '30px'}),
 
-@callback(
-    Output('summary-stats-container', 'children'),
-    Input('url', 'pathname')
-)
-def update_summary_stats(pathname):
-    """Update summary statistics display"""
-    stats = get_sv_summary_stats()
-    if not stats:
-        return html.P("Error loading summary statistics")
-    
-    stat_cards = []
-    
-    # SV Type counts
-    for sv_type, count in stats['sv_types'].items():
-        stat_cards.append(
-            html.Div([
-                html.H4(sv_type, style={'color': UCONN_NAVY}),
-                html.P(f"{count:,} variants")
-            ], style={
-                'backgroundColor': 'white',
-                'padding': '15px',
-                'borderRadius': '5px',
-                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                'minWidth': '150px'
-            })
-        )
-    
-    # Affected/Unaffected stats
-    affected_count = stats['affected_stats'].get(1, 0)
-    unaffected_count = stats['affected_stats'].get(0, 0)
-    stat_cards.append(
-        html.Div([
-            html.H4('Patient Status', style={'color': UCONN_NAVY}),
-            html.P(f"Affected: {affected_count:,}"),
-            html.P(f"Unaffected: {unaffected_count:,}")
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '15px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'minWidth': '150px'
-        })
-    )
-    
-    return stat_cards
+    ], style=uconn_styles['content'])
 
-@callback(
-    [Output('sv-type-pie', 'figure'),
-     Output('sv-type-bar', 'figure')],
-    Input('url', 'pathname')
-)
-def update_sv_type_charts(pathname):
-    """Update SV type distribution charts"""
-    stats = get_sv_summary_stats()
-    if not stats:
-        return {}, {}
-    
-    # Prepare data
-    types = list(stats['sv_types'].keys())
-    counts = list(stats['sv_types'].values())
-    
-    # Create pie chart
-    pie_fig = px.pie(
-        values=counts,
-        names=types,
-        title='SV Type Distribution',
-        color_discrete_sequence=px.colors.qualitative.Set3
-    )
-    pie_fig.update_traces(textposition='inside', textinfo='percent+label')
-    
-    # Create bar chart
-    bar_fig = px.bar(
-        x=types,
-        y=counts,
-        title='SV Count by Type',
-        labels={'x': 'SV Type', 'y': 'Count'},
-        color_discrete_sequence=[UCONN_NAVY]
-    )
-    
-    return pie_fig, bar_fig
-
+# Callbacks
 @callback(
     Output('chromosome-distribution', 'figure'),
-    Input('url', 'pathname')
+    Input('chromosome-distribution', 'id')
 )
-def update_chromosome_chart(pathname):
-    """Update chromosome distribution chart"""
+def update_chromosome_distribution(trigger):
+    """Update the chromosome distribution chart"""
+    # Get data
     df = get_chromosome_distribution_by_category()
     if df is None:
-        return {}
+        return go.Figure()
     
-    # Define a custom color map for categories
-    color_map = {
-        'Mother': '#CC3366',  # Pink/rose color for mothers
-        'Father': '#3366CC',  # Blue color for fathers
-        'Child': UCONN_NAVY,  # Navy color for children
-        'Background': '#669900'  # Green color for background
-    }
+    # Update chromosome labels for display
+    df['chrom'] = df['chrom'].apply(lambda x: f"Chr {x}")
     
+    # Create the figure
     fig = px.bar(
-        df,
-        x='chrom',
-        y='percentage',  # Now using percentage instead of count
+        df, 
+        x='chrom', 
+        y='percentage', 
         color='category',
-        barmode='group',  # Group bars by chromosome
-        title='SV Distribution Across Chromosomes by Category (% within each category)',
-        labels={'chrom': 'Chromosome', 'percentage': 'Percentage (%)', 'category': 'Category'},
-        color_discrete_map=color_map,
-        height=500  # Increase height for better visibility
+        barmode='group',
+        color_discrete_map={
+            'Mother': '#CC3366', 
+            'Father': '#3366CC', 
+            'Child': UCONN_NAVY, 
+            'Background': '#669900'
+        },
+        labels={'percentage': '% of SVs in Category', 'chrom': 'Chromosome', 'category': 'Category'}
     )
     
-    # Improve layout
+    # Customize layout
     fig.update_layout(
+        title='',
+        legend_title_text='',
+        height=500,
+        font=dict(family="Arial", size=12),
+        margin=dict(t=30, b=50, l=50, r=20),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -521,249 +608,126 @@ def update_chromosome_chart(pathname):
             xanchor="right",
             x=1
         ),
-        margin=dict(t=80, b=50),
         xaxis=dict(
             title_font=dict(size=14),
             tickfont=dict(size=12),
-            tickangle=-45  # Angle the chromosome labels for better readability
+            tickangle=-45
         ),
         yaxis=dict(
             title_font=dict(size=14),
-            tickfont=dict(size=12),
-            # Add percentage format to y-axis
-            tickformat='.1f',  # Show one decimal place
-            range=[0, df['percentage'].max() * 1.1]  # Add 10% headroom to max value
+            tickfont=dict(size=12)
         )
     )
     
-    # Add value labels on top of bars
-    for trace in fig.data:
-        category = trace.name
-        category_data = df[df['category'] == category]
-        
-        # Add text above each bar
-        fig.add_traces(
-            go.Scatter(
-                x=category_data['chrom'],
-                y=category_data['percentage'] + 0.5,  # Slightly above the bar
-                text=category_data['percentage'].round(1).astype(str) + '%',
-                mode='text',
-                showlegend=False,
-                textfont=dict(color='rgba(0,0,0,0.6)', size=9),
-                hoverinfo='skip'
-            )
-        )
-    
     return fig
-
-@callback(
-    Output('sv-size-boxplot', 'figure'),
-    Input('url', 'pathname')
-)
-def update_size_analysis_chart(pathname):
-    """Update SV size analysis chart"""
-    df = get_sv_size_distribution()
-    if df is None:
-        return {}
-    
-    fig = px.box(
-        df,
-        x='type',
-        y='length',
-        title='SV Size Distribution by Type',
-        labels={'type': 'SV Type', 'length': 'Size (bp)'},
-        color='type',
-        color_discrete_sequence=px.colors.qualitative.Set3
-    )
-    fig.update_layout(showlegend=False)
-    fig.update_yaxes(type='log')
-    
-    return fig
-
-@callback(
-    [Output('background-sv-comparison', 'figure'),
-     Output('background-sv-frequency', 'figure')],
-    Input('url', 'pathname')
-)
-def update_background_analysis_charts(pathname):
-    """Update background SV analysis charts"""
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        
-        # Compare SV types between population and background
-        population_df = pd.read_sql_query("""
-            SELECT type, COUNT(*) as count, 'Population' as source
-            FROM phenotype_svs
-            GROUP BY type
-            UNION ALL
-            SELECT type, COUNT(*) as count, 'Background' as source
-            FROM background_svs
-            GROUP BY type
-        """, conn)
-        
-        # Get frequency distribution from background SVs
-        frequency_df = pd.read_sql_query("""
-            SELECT freq, COUNT(*) as count
-            FROM background_svs
-            WHERE freq IS NOT NULL
-            GROUP BY freq
-            ORDER BY freq
-        """, conn)
-        
-        conn.close()
-        
-        # Create comparison chart
-        comp_fig = px.bar(
-            population_df,
-            x='type',
-            y='count',
-            color='source',
-            barmode='group',
-            title='SV Types: Population vs Background',
-            labels={'type': 'SV Type', 'count': 'Count', 'source': 'Source'},
-            color_discrete_sequence=[UCONN_NAVY, UCONN_LIGHT_BLUE]
-        )
-        
-        # Create frequency distribution chart
-        freq_fig = px.line(
-            frequency_df,
-            x='freq',
-            y='count',
-            title='Background SV Frequency Distribution',
-            labels={'freq': 'Frequency', 'count': 'Count'},
-            line_shape='spline'
-        )
-        freq_fig.update_traces(line_color=UCONN_NAVY)
-        
-        return comp_fig, freq_fig
-        
-    except sqlite3.Error as e:
-        print(f"Database error: {e}")
-        return {}, {}
 
 @callback(
     Output('top-svs-table-container', 'children'),
-    Input('url', 'pathname')
+    Input('top-svs-table-container', 'id')
 )
-def update_top_svs_table(pathname):
-    """Update top SVs table"""
-    df = get_top_svs_by_category()
+def update_top_svs_table(trigger):
+    """Update the top SVs table"""
+    # Get data
+    df, _ = get_top_frequent_svs_in_children()
     if df is None:
-        return html.P("No data available for top SVs analysis")
+        return html.P("No data available", style={'color': 'gray', 'fontStyle': 'italic'})
     
-    # Create a formatted table with the data
-    table_header = [
-        html.Thead(html.Tr([
-            html.Th('SV ID', style={'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'}),
-            html.Th('Type', style={'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'}),
-            html.Th('Chromosome', style={'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'}),
-            html.Th('Position', style={'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'}),
-            html.Th('Length', style={'textAlign': 'right', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'}),
-            html.Th('Child', style={'textAlign': 'right', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'}),
-            html.Th('Mother', style={'textAlign': 'right', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'}),
-            html.Th('Father', style={'textAlign': 'right', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'}),
-            html.Th('Background', style={'textAlign': 'right', 'backgroundColor': UCONN_NAVY, 'color': 'white', 'padding': '10px'})
-        ]))
-    ]
-    
-    rows = []
-    for i, (_, row) in enumerate(df.iterrows()):
-        bg_color = '#f5f5f5' if i % 2 == 0 else 'white'
-        rows.append(html.Tr([
-            html.Td(row['id'], style={'padding': '8px', 'backgroundColor': bg_color}),
-            html.Td(row['type'], style={'padding': '8px', 'backgroundColor': bg_color}),
-            html.Td(row['chrom'], style={'padding': '8px', 'backgroundColor': bg_color}),
-            html.Td(f"{row['start']:,} - {row['end']:,}", style={'padding': '8px', 'backgroundColor': bg_color}),
-            html.Td(f"{row['length']:,}", style={'textAlign': 'right', 'padding': '8px', 'backgroundColor': bg_color}),
-            html.Td([
-                html.Div(f"{row['child_count']:,}", style={'fontWeight': 'bold'}),
-                html.Div(f"({row['child_pct']:.2f}%)", style={'fontSize': '11px', 'color': '#666'})
-            ], style={'textAlign': 'right', 'padding': '8px', 'backgroundColor': bg_color, 'color': UCONN_NAVY}),
-            html.Td([
-                html.Div(f"{row['mother_count']:,}"),
-                html.Div(f"({row['mother_pct']:.2f}%)", style={'fontSize': '11px', 'color': '#666'})
-            ], style={'textAlign': 'right', 'padding': '8px', 'backgroundColor': bg_color, 'color': '#CC3366'}),
-            html.Td([
-                html.Div(f"{row['father_count']:,}"),
-                html.Div(f"({row['father_pct']:.2f}%)", style={'fontSize': '11px', 'color': '#666'})
-            ], style={'textAlign': 'right', 'padding': '8px', 'backgroundColor': bg_color, 'color': '#3366CC'}),
-            html.Td([
-                html.Div(f"{row['background_count']:,}"),
-                html.Div(f"({row['background_pct']:.2f}%)", style={'fontSize': '11px', 'color': '#666'})
-            ], style={'textAlign': 'right', 'padding': '8px', 'backgroundColor': bg_color, 'color': '#669900'})
+    # Format the table data
+    table_rows = []
+    for _, row in df.iterrows():
+        table_rows.append(html.Tr([
+            html.Td(row['id'], style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(row['type'], style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(f"Chr {row['chrom']}", style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(f"{row['child_count']} ({row['child_pct']}%)", style={'padding': '8px', 'borderBottom': '1px solid #ddd', 'backgroundColor': 'rgba(21, 71, 123, 0.1)'}),
+            html.Td(f"{row['mother_count']} ({row['mother_pct']}%)", style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(f"{row['father_count']} ({row['father_pct']}%)", style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(f"{row['background_count']} ({row['background_pct']}%)", style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
         ]))
     
-    table_body = [html.Tbody(rows)]
+    # Create the table
+    table = html.Table([
+        html.Thead(
+            html.Tr([
+                html.Th("SV ID", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                html.Th("Type", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                html.Th("Chr", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                html.Th("Children", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                html.Th("Mothers", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                html.Th("Fathers", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                html.Th("Background", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+            ])
+        ),
+        html.Tbody(table_rows)
+    ], style={'width': '100%', 'borderCollapse': 'collapse', 'fontSize': '14px'})
     
-    table = html.Table(
-        table_header + table_body,
-        style={
-            'borderCollapse': 'collapse',
-            'width': '100%',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'borderRadius': '5px',
-            'overflow': 'hidden'
-        }
-    )
-    
-    return html.Div([
-        html.P('This table shows the top 20 most frequent SVs in children ranked by absolute count. For each category (Child, Mother, Father, Background), both the raw count and percentage (in parentheses) are displayed.', 
-               style={'marginBottom': '15px', 'fontStyle': 'italic'}),
-        table
-    ])
+    return table
 
 @callback(
     Output('top-svs-chart', 'figure'),
-    Input('url', 'pathname')
+    Input('top-svs-chart', 'id')
 )
-def update_top_svs_chart(pathname):
-    """Update top SVs chart"""
-    df = get_top_svs_by_category()
+def update_top_svs_chart(trigger):
+    """Update the top SVs chart"""
+    # Get data
+    df, category_totals = get_top_frequent_svs_in_children()
     if df is None:
-        return {}
+        return go.Figure()
     
-    # Create a melted dataframe for the chart
-    chart_df = pd.melt(
-        df,
-        id_vars=['id', 'type', 'chrom'],
-        value_vars=['child_count', 'mother_count', 'father_count', 'background_count'],
-        var_name='category',
-        value_name='count'
-    )
+    # Prepare data for chart
+    chart_data = []
     
-    # Clean up category names
-    chart_df['category'] = chart_df['category'].str.replace('_count', '').str.capitalize()
+    # Format the SV labels
+    df['sv_label'] = df.apply(lambda row: f"{row['id']} ({row['type']})", axis=1)
     
-    # Create a composite label for each SV that includes type and chromosome
-    chart_df['sv_label'] = chart_df['id'] + ' (' + chart_df['type'] + ', ' + chart_df['chrom'] + ')'
+    # Prepare data for Children
+    for _, row in df.iterrows():
+        chart_data.append({
+            'sv_label': row['sv_label'],
+            'count': row['child_count'],
+            'category': 'Children',
+            'percentage': row['child_pct']
+        })
+        
+        # Prepare data for Mothers
+        chart_data.append({
+            'sv_label': row['sv_label'],
+            'count': row['mother_count'],
+            'category': 'Mothers',
+            'percentage': row['mother_pct']
+        })
+        
+        # Prepare data for Fathers
+        chart_data.append({
+            'sv_label': row['sv_label'],
+            'count': row['father_count'],
+            'category': 'Fathers',
+            'percentage': row['father_pct']
+        })
     
-    # Define a custom color map for categories
-    color_map = {
-        'Child': UCONN_NAVY,       # Navy color for children
-        'Mother': '#CC3366',       # Pink/rose color for mothers
-        'Father': '#3366CC',       # Blue color for fathers
-        'Background': '#669900'    # Green color for background
-    }
+    chart_df = pd.DataFrame(chart_data)
     
-    # Create the grouped bar chart
+    # Create the chart
     fig = px.bar(
         chart_df,
         x='sv_label',
         y='count',
         color='category',
         barmode='group',
-        title='Top 20 Most Frequent SVs in Children by Count (with comparison to other categories)',
-        labels={
-            'sv_label': 'Structural Variation',
-            'count': 'Count (absolute number)',
-            'category': 'Category'
+        color_discrete_map={
+            'Children': UCONN_NAVY,
+            'Mothers': '#CC3366',
+            'Fathers': '#3366CC'
         },
-        color_discrete_map=color_map,
-        height=600  # Increase height for better visibility
+        labels={'count': 'Number of Samples', 'sv_label': 'Structural Variation', 'category': 'Category'}
     )
     
-    # Improve layout
+    # Customize layout
     fig.update_layout(
+        title='',
+        height=500,
+        font=dict(family="Arial", size=12),
+        margin=dict(t=30, b=100, l=50, r=20),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -771,7 +735,6 @@ def update_top_svs_chart(pathname):
             xanchor="right",
             x=1
         ),
-        margin=dict(t=80, b=120),  # Add more bottom margin for x-axis labels
         xaxis=dict(
             title_font=dict(size=14),
             tickfont=dict(size=11),
@@ -803,3 +766,132 @@ def update_top_svs_chart(pathname):
         )
     
     return fig
+
+# Add callback to create proband inheritance table
+@callback(
+    Output('proband-inheritance-table-container', 'children'),
+    Input('proband-inheritance-table-container', 'id')
+)
+def update_proband_inheritance_table(trigger):
+    """Update the proband SV inheritance table"""
+    # Load proband SV inheritance data from CSV
+    df, total_proband_count = load_proband_sv_inheritance()
+    
+    if df.empty:
+        return html.P("No proband SV inheritance data available", style={'color': 'gray', 'fontStyle': 'italic'})
+    
+    # Calculate percentages for clearer interpretation
+    df['from_father_pct'] = (df['father_count'] / df['proband_count'] * 100).round(1)
+    df['from_mother_pct'] = (df['mother_count'] / df['proband_count'] * 100).round(1)
+    df['from_both_pct'] = (df['both_parents_count'] / df['proband_count'] * 100).round(1)
+    
+    # Format the table data - limit to first 50 rows for better performance
+    table_rows = []
+    for _, row in df.head(50).iterrows():
+        table_rows.append(html.Tr([
+            html.Td(row['sv_id'], style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(row.get('gene', ''), style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(row['sv_type'], style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(f"Chr {row['sv_chrom']}", style={'padding': '8px', 'borderBottom': '1px solid #ddd'}),
+            html.Td(f"{row['proband_count']}", style={'padding': '8px', 'borderBottom': '1px solid #ddd', 'textAlign': 'center'}),
+            html.Td([
+                html.Span(f"{row['father_count']} ", style={'fontWeight': 'bold'}),
+                html.Span(f"({row['from_father_pct']}%)", style={'fontSize': '12px', 'color': '#666'})
+            ], style={'padding': '8px', 'borderBottom': '1px solid #ddd', 'textAlign': 'center'}),
+            html.Td([
+                html.Span(f"{row['mother_count']} ", style={'fontWeight': 'bold'}),
+                html.Span(f"({row['from_mother_pct']}%)", style={'fontSize': '12px', 'color': '#666'})
+            ], style={'padding': '8px', 'borderBottom': '1px solid #ddd', 'textAlign': 'center'}),
+            html.Td([
+                html.Span(f"{row['both_parents_count']} ", style={'fontWeight': 'bold'}),
+                html.Span(f"({row['from_both_pct']}%)", style={'fontSize': '12px', 'color': '#666'})
+            ], style={'padding': '8px', 'borderBottom': '1px solid #ddd', 'textAlign': 'center', 'backgroundColor': 'rgba(21, 71, 123, 0.1)'}),
+        ]))
+    
+    # Create the table
+    table = html.Div([
+        html.P(f"Showing top 50 of {len(df)} SVs found in probands", style={'fontStyle': 'italic', 'marginBottom': '10px'}),
+        html.Table([
+            html.Thead(
+                html.Tr([
+                    html.Th("SV ID", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                    html.Th("Associated Gene", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                    html.Th("Type", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                    html.Th("Chromosome", style={'padding': '8px', 'textAlign': 'left', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                    html.Th("Proband Count", style={'padding': '8px', 'textAlign': 'center', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                    html.Th("From Father", style={'padding': '8px', 'textAlign': 'center', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                    html.Th("From Mother", style={'padding': '8px', 'textAlign': 'center', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                    html.Th("From Both Parents", style={'padding': '8px', 'textAlign': 'center', 'backgroundColor': UCONN_NAVY, 'color': 'white'}),
+                ])
+            ),
+            html.Tbody(table_rows)
+        ], style={'width': '100%', 'borderCollapse': 'collapse', 'fontSize': '14px'})
+    ])
+    
+    return table
+
+# Add callback for downloading proband SV inheritance data
+@callback(
+    Output('download-proband-sv-data', 'data'),
+    Input('download-proband-sv-button', 'n_clicks'),
+    prevent_initial_call=True
+)
+def download_proband_sv_data(n_clicks):
+    """Generate a CSV file with proband SV inheritance data"""
+    if not n_clicks:
+        return None
+    
+    # Load proband SV inheritance data from CSV
+    df, total_proband_count = load_proband_sv_inheritance()
+    
+    if df.empty:
+        return None
+    
+    # Calculate percentages for the export
+    df['from_father_pct'] = (df['father_count'] / df['proband_count'] * 100).round(1)
+    df['from_mother_pct'] = (df['mother_count'] / df['proband_count'] * 100).round(1)
+    df['from_both_pct'] = (df['both_parents_count'] / df['proband_count'] * 100).round(1)
+    
+    # Rename columns for better readability in CSV
+    df_export = df.rename(columns={
+        'sv_id': 'Proband SV ID',
+        'proband_count': 'Number of Probands',
+        'father_count': 'Inherited from Father',
+        'mother_count': 'Inherited from Mother',
+        'both_parents_count': 'Inherited from Both Parents',
+        'from_father_pct': 'Father Inheritance %',
+        'from_mother_pct': 'Mother Inheritance %',
+        'from_both_pct': 'Both Parents Inheritance %',
+        'sv_type': 'SV Type',
+        'sv_chrom': 'Chromosome',
+        'sv_start': 'Start Position',
+        'sv_end': 'End Position',
+        'sv_length': 'SV Length'
+    })
+    
+    # Prepare CSV download
+    csv_string = df_export.to_csv(index=False)
+    return dict(content=csv_string, filename="proband_sv_inheritance.csv")
+
+# MSC/NCC table has been completely removed
+
+# Add callback for downloading gene interactions
+@callback(
+    Output('download-gene-interactions', 'data'),
+    Input('download-interactions-button', 'n_clicks'),
+    prevent_initial_call=True
+)
+def download_gene_interactions(n_clicks):
+    """Generate a CSV file with all gene interactions"""
+    if not n_clicks:
+        return None
+        
+    # Get all gene interactions
+    interactions_df = get_all_gene_interactions()
+    
+    if interactions_df.empty:
+        return None
+    
+    # Prepare CSV download
+    csv_string = interactions_df.to_csv(index=False)
+    return dict(content=csv_string, filename="gene_interactions.csv")

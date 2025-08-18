@@ -888,6 +888,114 @@ def generate_gene_interactions_data(chromosomes, db_path=DB_PATH):
     
     return chord_data
 
+def get_all_gene_interactions(db_path=DB_PATH):
+    """
+    Retrieve all gene interactions from table.csv with chromosome coordinates
+    
+    Args:
+        db_path (str): Path to the SQLite database
+        
+    Returns:
+        pandas.DataFrame: DataFrame with all gene interactions and coordinates
+    """
+    import pandas as pd
+    
+    try:
+        # Load the interaction data from table.csv
+        table_df = pd.read_csv('assets/table.csv')
+        
+        # Connect to the database to get gene coordinates
+        conn = sqlite3.connect(db_path)
+        
+        interactions_list = []
+        
+        # Process each gene in the table
+        for index, row in table_df.iterrows():
+            gene_id = row['Gene']
+            interaction_partners = row.get('Interaction_partner(s)', '')
+            
+            # Skip if no interaction partners
+            if pd.isna(interaction_partners) or interaction_partners == '-' or not interaction_partners:
+                continue
+                
+            # Get the coordinates of the source gene
+            source_gene_df = pd.read_sql_query("""
+                SELECT id, chrom, x1, x2 
+                FROM genes 
+                WHERE id = ?
+            """, conn, params=(gene_id,))
+            
+            if source_gene_df.empty:
+                continue
+                
+            source_gene = source_gene_df.iloc[0]
+            source_chrom = source_gene['chrom']
+            
+            # Process each interaction partner
+            partners = [p.strip() for p in interaction_partners.split(',')]
+            
+            for partner in partners:
+                # Handle family names (e.g., "SMAD family")
+                if "family" in partner.lower():
+                    family_prefix = partner.split()[0]
+                    
+                    # Query for genes that start with this prefix
+                    family_genes_df = pd.read_sql_query("""
+                        SELECT id, chrom, x1, x2 
+                        FROM genes 
+                        WHERE id LIKE ?
+                    """, conn, params=(f"{family_prefix}%",))
+                    
+                    for _, family_gene in family_genes_df.iterrows():
+                        interactions_list.append({
+                            'source_gene': source_gene['id'],
+                            'source_chromosome': source_chrom,
+                            'source_start': source_gene['x1'],
+                            'source_end': source_gene['x2'],
+                            'target_gene': family_gene['id'],
+                            'target_chromosome': family_gene['chrom'],
+                            'target_start': family_gene['x1'],
+                            'target_end': family_gene['x2'],
+                            'interaction_type': f"{source_gene['id']}-{family_gene['id']} (Family)",
+                            'genomic_distance': abs(int(source_gene['x1']) - int(family_gene['x1'])) if source_chrom == family_gene['chrom'] else None
+                        })
+                else:
+                    # Direct partner lookup
+                    target_gene_df = pd.read_sql_query("""
+                        SELECT id, chrom, x1, x2 
+                        FROM genes 
+                        WHERE id = ?
+                    """, conn, params=(partner,))
+                    
+                    if not target_gene_df.empty:
+                        target_gene = target_gene_df.iloc[0]
+                        interactions_list.append({
+                            'source_gene': source_gene['id'],
+                            'source_chromosome': source_chrom,
+                            'source_start': source_gene['x1'],
+                            'source_end': source_gene['x2'],
+                            'target_gene': target_gene['id'],
+                            'target_chromosome': target_gene['chrom'],
+                            'target_start': target_gene['x1'],
+                            'target_end': target_gene['x2'],
+                            'interaction_type': f"{source_gene['id']}-{target_gene['id']} (Direct)",
+                            'genomic_distance': abs(int(source_gene['x1']) - int(target_gene['x1'])) if source_chrom == target_gene['chrom'] else None
+                        })
+        
+        conn.close()
+        
+        # Convert list to DataFrame
+        if interactions_list:
+            return pd.DataFrame(interactions_list)
+        else:
+            return pd.DataFrame()
+        
+    except Exception as e:
+        print(f"Error getting all gene interactions: {e}")
+        import traceback
+        traceback.print_exc()
+        return pd.DataFrame()
+
 def get_chromosome_size(chrom):
     """
     Get the size of a chromosome (approximate values for human genome)

@@ -2,3 +2,4 @@
 /output_svs
 childGenes.py
 assets/*
+assets/proband_sv_inheritance_*.csv
