@@ -20,6 +20,12 @@ python run.py
 ```
 Serves on http://localhost:8002 (internal network / UConn host).
 
+## AI Query indexes
+To speed up AI Query intent templates, create the recommended indexes:
+```bash
+sqlite3 /data/cellvar.db/cellvar.db < scripts/create_ai_query_indexes.sql
+```
+
 ## Screenshots (local only)
 - Family genomes: trio SV tracks with shared and proband-specific events.  
 ![Family genomes](images/family.png)

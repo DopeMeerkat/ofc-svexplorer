@@ -11,7 +11,7 @@ import pandas as pd
 DB_PATH = '/data/cellvar.db/cellvar.db'
 
 
-def run_readonly_query(query, params=None, db_path=DB_PATH, limit=50):
+def run_readonly_query(query, params=None, db_path=DB_PATH, limit=5000):
     """
     Execute a read-only SELECT query with optional parameters.
     """
@@ -33,7 +33,7 @@ def run_readonly_query(query, params=None, db_path=DB_PATH, limit=50):
     conn.row_factory = sqlite3.Row
     try:
         cursor = conn.cursor()
-        cursor.execute(safe_query, params or ())
+        cursor.execute(safe_query, params or {})
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     finally:

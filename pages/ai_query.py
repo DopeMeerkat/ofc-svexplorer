@@ -3,11 +3,19 @@ AI Query page for local LLM interaction.
 """
 
 import json
+import re
 
-from dash import html, dcc, Input, Output, State, callback
+from dash import html, dcc, Input, Output, State, callback, no_update
 
 from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE, UCONN_GRAY, uconn_styles
 from utils.database import run_readonly_query
+from types import SimpleNamespace
+
+from utils.ai_query_visualizations import (
+    ALLOWED_VISUALIZATION_KINDS,
+    build_visualization_spec,
+    render_visualization,
+)
 from utils.ollama_client import generate_ollama_response
 from utils.openai_client import generate_openai_response
 
@@ -37,6 +45,8 @@ SCHEMA_SUMMARY = (
     "- SELECT bam_id, pheno FROM phenotype WHERE child = 1 AND LOWER(pheno) IN ('cl', 'clp') LIMIT 25;\n"
     "- SELECT bam_id, pheno FROM phenotype WHERE child = 0 AND LOWER(pheno) IN ('cl', 'clp') LIMIT 25;\n"
 )
+
+ALLOW_RAW_SQL_FALLBACK = False
 
 def _additional_context(user_text: str) -> str:
     """
@@ -102,7 +112,7 @@ def _call_llm(model_value: str, prompt: str) -> str:
     return generate_ollama_response(prompt)
 
 
-def _parse_sql_response(raw_text: str) -> dict:
+def _parse_json_response(raw_text: str) -> dict:
     raw = raw_text.strip()
     if not raw:
         return {}
@@ -120,6 +130,13 @@ def _parse_sql_response(raw_text: str) -> dict:
     if not isinstance(data, dict):
         return {}
     return data
+
+
+def _extract_gene_id_from_sql(sql_query: str) -> str | None:
+    match = re.search(r"\bid\s*=\s*'([A-Za-z0-9_-]+)'", sql_query, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return None
 
 
 def _summarize_rows(rows: list[dict], max_rows: int = 50) -> str:
@@ -150,6 +167,29 @@ def _format_results_table(rows: list[dict], max_rows: int = 50) -> str:
         lines.append("| " + " | ".join(values) + " |")
 
     return "\n".join(lines)
+
+
+def _format_response_summary(rows: list[dict]) -> str:
+    if not rows:
+        return "No results found."
+    return f"Query returned {len(rows)} row(s). See the result preview below."
+
+
+def _build_visualization_prompt(user_text: str, rows: list[dict]) -> str:
+    columns = list(rows[0].keys()) if rows else []
+    allowed = ", ".join(sorted(ALLOWED_VISUALIZATION_KINDS))
+    return (
+        "You are a visualization selector for OFC-SV Explorer.\n"
+        "Choose a visualization kind from the allowed list.\n"
+        "Return JSON only, no markdown.\n\n"
+        "JSON shape:\n"
+        "{\n  \"visualization_kind\": \"one of the allowed values\"\n}\n\n"
+        f"Allowed values: {allowed}\n"
+        f"Columns: {columns}\n"
+        f"Row count: {len(rows)}\n\n"
+        "User question:\n"
+        f"{user_text.strip()}\n"
+    )
 
 
 def page_layout():
@@ -191,16 +231,18 @@ def page_layout():
                             'fontSize': '12px',
                         },
                     ),
+                    dcc.Checklist(
+                        id="ai-query-show-visualization",
+                        options=[{"label": "Show visualization when available", "value": "show"}],
+                        value=["show"],
+                        style={
+                            'marginLeft': '12px',
+                            'fontSize': '12px',
+                        },
+                    ),
                 ], style={'display': 'flex', 'alignItems': 'center'}),
             ],
             style={'marginBottom': '20px'},
-        ),
-        html.Div(
-            id="ai-query-sql-container",
-            style={
-                'marginTop': '16px',
-                'display': 'none',
-            },
         ),
         dcc.Loading(
             id="ai-query-loading",
@@ -218,6 +260,17 @@ def page_layout():
                 },
             ),
         ),
+        html.Div(
+            id="ai-query-sql-container",
+            style={
+                'marginTop': '16px',
+                'display': 'none',
+            },
+        ),
+        html.Div(
+            id="ai-query-visualization-container",
+            style={'marginTop': '20px'},
+        ),
     ], style={**uconn_styles['content'], 'maxWidth': '980px', 'margin': '40px auto 0 auto'})
 
 
@@ -225,78 +278,163 @@ def page_layout():
     Output("ai-query-output", "children"),
     Output("ai-query-sql-container", "children"),
     Output("ai-query-sql-container", "style"),
+    Output("ai-query-visualization-container", "children"),
     Input("ai-query-submit", "n_clicks"),
     State("ai-query-input", "value"),
     State("ai-query-model", "value"),
+    State("ai-query-show-visualization", "value"),
     prevent_initial_call=True,
+    running=[
+        (Output("ai-query-output", "children"), "", no_update),
+        (Output("ai-query-sql-container", "children"), None, no_update),
+        (Output("ai-query-sql-container", "style"), {'display': 'none'}, no_update),
+        (Output("ai-query-visualization-container", "children"), html.Div(), no_update),
+    ],
 )
-def handle_ai_query(n_clicks, user_text, model_value):
+def handle_ai_query(n_clicks, user_text, model_value, show_visualization_values):
     _ = n_clicks
     if not user_text or not user_text.strip():
-        return "Please enter a question to continue.", None, {'display': 'none'}
+        return "Please enter a question to continue.", None, {'display': 'none'}, html.Div()
+
+    show_visualization = bool(show_visualization_values and "show" in show_visualization_values)
 
     try:
         sql_prompt = _build_sql_prompt(user_text)
         raw_sql_response = _call_llm(model_value, sql_prompt)
-        sql_payload = _parse_sql_response(raw_sql_response)
+        sql_payload = _parse_json_response(raw_sql_response)
         sql_query = (sql_payload.get("sql") or "").strip()
 
-        if sql_query.lower().startswith("select"):
-            try:
-                rows = run_readonly_query(sql_query, limit=5000)
-                summary = _summarize_rows(rows)
-                answer_prompt = _build_answer_prompt(user_text, summary)
-                response = _call_llm(model_value, answer_prompt)
-                result_preview = rows[:50]
-                sql_block = dcc.Markdown(
-                    f"```sql\n{sql_query}\n```",
-                    style={'fontSize': '13px'},
-                )
-                results_block = dcc.Markdown(
-                    _format_results_table(result_preview, max_rows=50),
-                    style={'fontSize': '13px'},
-                )
-                sql_container = html.Div([
-                    html.Div(
-                        "Executed SQL",
-                        style={'fontWeight': 'bold', 'marginBottom': '6px', 'color': UCONN_NAVY},
-                    ),
-                    sql_block,
-                    html.Div(
-                        "Results",
-                        style={'fontWeight': 'bold', 'margin': '12px 0 6px', 'color': UCONN_NAVY},
-                    ),
-                    html.Div(
-                        f"Displaying {len(result_preview)} out of {len(rows)} total results",
-                        style={'marginBottom': '6px', 'color': '#555', 'fontSize': '13px'},
-                    ),
-                    results_block,
-                ])
-                return response, sql_container, {'marginTop': '16px', 'display': 'block'}
-            except Exception as exc:
-                summary = f"Database query failed: {exc}"
-                answer_prompt = _build_answer_prompt(user_text, summary)
-                response = _call_llm(model_value, answer_prompt)
-                return response, None, {'display': 'none'}
+        if not sql_query.lower().startswith("select"):
+            raise ValueError("No valid SQL generated")
 
-        fallback_prompt = _build_fallback_prompt(user_text)
-        return _call_llm(model_value, fallback_prompt), None, {'display': 'none'}
-    except FileNotFoundError:
-        return "OpenAI key file not found at api_key.txt. Place your token there to use OpenAI.", None, {'display': 'none'}
-    except ConnectionError:
-        if model_value == "openai:gpt-4o-mini":
-            return "Unable to reach OpenAI. Check your network connection.", None, {'display': 'none'}
-        return "Unable to reach Ollama at http://localhost:11434. Make sure it is running.", None, {'display': 'none'}
+        rows = run_readonly_query(sql_query, limit=5000)
+        response = _format_response_summary(rows)
+
+        result_preview = rows[:50]
+        sql_block = dcc.Markdown(
+            f"```sql\n{sql_query}\n```",
+            style={'fontSize': '13px'},
+        )
+        results_block = dcc.Markdown(
+            _format_results_table(result_preview, max_rows=50),
+            style={'fontSize': '13px'},
+        )
+
+        sql_container = html.Div([
+            html.Div(
+                "Generated SQL",
+                style={'fontWeight': 'bold', 'marginBottom': '6px'}
+            ),
+            sql_block,
+            html.Div(
+                "Result preview",
+                style={'fontWeight': 'bold', 'margin': '12px 0 6px 0'}
+            ),
+            results_block,
+        ], style={
+            'backgroundColor': '#F7F9FC',
+            'border': f'1px solid {UCONN_LIGHT_BLUE}',
+            'borderRadius': '6px',
+            'padding': '12px',
+        })
+
+        visualization_component = html.Div()
+        if show_visualization:
+            visualization_kind = "none"
+            if rows:
+                viz_prompt = _build_visualization_prompt(user_text, rows)
+                raw_viz_response = _call_llm(model_value, viz_prompt)
+                viz_payload = _parse_json_response(raw_viz_response)
+                visualization_kind = (viz_payload.get("visualization_kind") or "none").strip()
+
+            if visualization_kind not in ALLOWED_VISUALIZATION_KINDS:
+                visualization_kind = "none"
+
+            visualization_rows = rows
+            gene_label = None
+            if rows:
+                first_row = rows[0]
+                if all(key in first_row for key in ("id", "chrom", "x1", "x2")):
+                    gene_label = first_row.get("id")
+                    if len(rows) == 1:
+                        visualization_kind = "population_igv_gene_window"
+                elif visualization_kind == "none":
+                    gene_id = _extract_gene_id_from_sql(sql_query)
+                    if gene_id:
+                        gene_rows = run_readonly_query(
+                            "SELECT id, chrom, x1, x2, length, strand FROM genes WHERE id = :gene LIMIT 1",
+                            params={"gene": gene_id},
+                            limit=1,
+                        )
+                        if gene_rows:
+                            visualization_rows = gene_rows
+                            gene_label = gene_rows[0].get("id")
+                            visualization_kind = "population_igv_gene_window"
+
+            plan_stub = SimpleNamespace(
+                intent="query",
+                gene=gene_label,
+                gene_a=None,
+                flank_bp=0,
+                visualization_kind=visualization_kind,
+            )
+            compiled = {"visualization_kind": visualization_kind}
+            visualization_spec = build_visualization_spec(
+                compiled=compiled,
+                plan=plan_stub,
+                rows=visualization_rows,
+            )
+            visualization_component = render_visualization(visualization_spec)
+
+        return response, sql_container, {'display': 'block'}, visualization_component
+    except ValueError:
+        if not ALLOW_RAW_SQL_FALLBACK:
+            message = (
+                "I could not generate a valid SQL query for this question. "
+                "Try rephrasing the request with a specific table or filter."
+            )
+            return message, None, {'display': 'none'}, html.Div()
+
+        try:
+            sql_prompt = _build_sql_prompt(user_text)
+            raw_sql_response = _call_llm(model_value, sql_prompt)
+            sql_payload = _parse_json_response(raw_sql_response)
+            sql_query = (sql_payload.get("sql") or "").strip()
+            if not sql_query.lower().startswith("select"):
+                fallback_prompt = _build_fallback_prompt(user_text)
+                response = _call_llm(model_value, fallback_prompt)
+                return response, None, {'display': 'none'}, html.Div()
+
+            rows = run_readonly_query(sql_query, limit=5000)
+            response = _format_response_summary(rows)
+            result_preview = rows[:50]
+            sql_block = dcc.Markdown(
+                f"```sql\n{sql_query}\n```",
+                style={'fontSize': '13px'},
+            )
+            results_block = dcc.Markdown(
+                _format_results_table(result_preview, max_rows=50),
+                style={'fontSize': '13px'},
+            )
+            sql_container = html.Div([
+                html.Div(
+                    "Generated SQL",
+                    style={'fontWeight': 'bold', 'marginBottom': '6px'}
+                ),
+                sql_block,
+                html.Div(
+                    "Result preview",
+                    style={'fontWeight': 'bold', 'margin': '12px 0 6px 0'}
+                ),
+                results_block,
+            ], style={
+                'backgroundColor': '#F7F9FC',
+                'border': f'1px solid {UCONN_LIGHT_BLUE}',
+                'borderRadius': '6px',
+                'padding': '12px',
+            })
+            return response, sql_container, {'display': 'block'}, html.Div()
+        except Exception as fallback_exc:
+            return f"Error running query: {fallback_exc}", None, {'display': 'none'}, html.Div()
     except Exception as exc:
-        return f"Unexpected error while generating a response: {exc}", None, {'display': 'none'}
-
-
-@callback(
-    Output("ai-query-sql-container", "children", allow_duplicate=True),
-    Output("ai-query-sql-container", "style", allow_duplicate=True),
-    Input("ai-query-submit", "n_clicks"),
-    prevent_initial_call=True,
-)
-def hide_sql_on_submit(n_clicks):
-    _ = n_clicks
-    return None, {'display': 'none'}
+        return f"Error generating response: {exc}", None, {'display': 'none'}, html.Div()
