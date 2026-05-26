@@ -23,6 +23,7 @@ from pages import family_genomes
 from pages import population_svs
 from pages import dashboard
 from pages import visualization_uploader  # Add visualization uploader import
+from pages import ai_query
 
 # Define the app layout with components
 def layout():
@@ -123,6 +124,8 @@ def display_page(pathname, selected_gene):
         return family_genomes.page_layout(selected_gene=selected_gene), '/family'
     if pathname == '/population':
         return population_svs.page_layout(selected_gene=selected_gene), '/population'
+    if pathname == '/ai-query':
+        return ai_query.page_layout(), '/ai-query'
     # Default and /summary
     return summary.page_layout(), '/summary'
 

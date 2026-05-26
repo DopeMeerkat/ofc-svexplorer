@@ -10,6 +10,35 @@ import pandas as pd
 # Database path
 DB_PATH = '/data/cellvar.db/cellvar.db'
 
+
+def run_readonly_query(query, params=None, db_path=DB_PATH, limit=50):
+    """
+    Execute a read-only SELECT query with optional parameters.
+    """
+    if not query or not isinstance(query, str):
+        raise ValueError("Query must be a non-empty string")
+
+    normalized = query.strip().lower()
+    if not normalized.startswith("select"):
+        raise ValueError("Only SELECT queries are allowed")
+
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Database file {db_path} not found")
+
+    safe_query = query.strip().rstrip(";")
+    if "limit" not in normalized:
+        safe_query = f"SELECT * FROM ({safe_query}) LIMIT {int(limit)}"
+
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        cursor = conn.cursor()
+        cursor.execute(safe_query, params or ())
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
 def load_genomes_from_db(db_path=DB_PATH):
     """
     Load available chromosomes from the database
