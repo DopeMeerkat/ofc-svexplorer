@@ -101,9 +101,17 @@ def check_database_connection(db_path=DB_PATH):
         print(f"Database connection error: {e}")
         return False
 
-def get_tracks_for_genome(chrom, db_path=DB_PATH):
+def get_tracks_for_genome(chrom, db_path=DB_PATH, include_interactions=True):
     """
-    Get gene tracks for a specific chromosome.
+    Get gene tracks and optionally gene interaction tracks for a specific chromosome
+    
+    Args:
+        chrom (str): Chromosome identifier
+        db_path (str): Path to the SQLite database
+        include_interactions (bool): Whether to include gene interaction tracks
+        
+    Returns:
+        list: List of track objects for the IGV browser
     """
     from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE
     
@@ -137,6 +145,30 @@ def get_tracks_for_genome(chrom, db_path=DB_PATH):
                 'displayMode': 'EXPANDED'
             })
         
+        # Add gene interaction track if requested (now matching circos visualization)
+        if include_interactions:
+            try:
+                interaction_data = generate_chia_pet_interactions_for_igv(chrom, db_path)
+                if interaction_data and len(interaction_data) > 0:
+                    # Create a BEDPE string for IGV
+                    bedpe_content = "\n".join(interaction_data)
+                    
+                    # Add as a track with data URL
+                    tracks.append({
+                        'name': f'Gene Interactions ({chrom})',
+                        'url': 'data:application/bedpe,' + bedpe_content,
+                        'format': 'bedpe',
+                        'displayMode': 'COLLAPSED',
+                        'height': 120,               # Taller track to show arcs
+                        'color': UCONN_NAVY,         # Default color for arcs
+                    })
+                else:
+                    print(f"No gene interaction data available for chromosome {chrom}")
+            except Exception as e:
+                print(f"Error adding gene interaction track: {e}")
+                import traceback
+                traceback.print_exc()
+            
         return tracks
         
     except sqlite3.Error as e:

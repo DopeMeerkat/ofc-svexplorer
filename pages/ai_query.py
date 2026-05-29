@@ -3,6 +3,7 @@ AI Query page for local LLM interaction.
 """
 
 import json
+import os
 import re
 
 from dash import html, dcc, Input, Output, State, callback, no_update
@@ -11,6 +12,8 @@ from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE, UCONN_GRAY, uconn_styles
 from utils.database import run_readonly_query
 from types import SimpleNamespace
 
+from agents.ai_query_orchestrator import handle_ai_query_with_mcp
+from utils.ai_query_visualization_specs import render_visualization_spec
 from utils.ai_query_visualizations import (
     ALLOWED_VISUALIZATION_KINDS,
     build_visualization_spec,
@@ -46,6 +49,7 @@ SCHEMA_SUMMARY = (
     "- SELECT bam_id, pheno FROM phenotype WHERE child = 0 AND LOWER(pheno) IN ('cl', 'clp') LIMIT 25;\n"
 )
 
+MCP_ENABLED = os.getenv("MCP_ENABLED", "true").lower() == "true"
 ALLOW_RAW_SQL_FALLBACK = False
 
 def _additional_context(user_text: str) -> str:
@@ -72,7 +76,6 @@ def _build_sql_prompt(user_text: str) -> str:
         "User question:\n"
         f"{user_text.strip()}\n"
     )
-
 
 def _build_answer_prompt(user_text: str, summary: str) -> str:
     return (
@@ -173,6 +176,18 @@ def _format_response_summary(rows: list[dict]) -> str:
     if not rows:
         return "No results found."
     return f"Query returned {len(rows)} row(s). See the result preview below."
+
+
+def _format_tool_calls(tool_calls: list[dict]) -> str:
+    if not tool_calls:
+        return "No MCP tool calls recorded."
+    lines = []
+    for call in tool_calls:
+        tool = call.get("tool", "unknown")
+        ok = call.get("result", {}).get("ok")
+        status = "ok" if ok or ok is None else "error"
+        lines.append(f"- {tool} ({status})")
+    return "\n".join(lines)
 
 
 def _build_visualization_prompt(user_text: str, rows: list[dict]) -> str:
@@ -299,6 +314,69 @@ def handle_ai_query(n_clicks, user_text, model_value, show_visualization_values)
     show_visualization = bool(show_visualization_values and "show" in show_visualization_values)
 
     try:
+        if MCP_ENABLED:
+            mcp_result = handle_ai_query_with_mcp(user_text, model_value, show_visualization)
+            if not mcp_result.get("ok"):
+                message = mcp_result.get("error", "MCP request failed.")
+                return message, None, {'display': 'none'}, html.Div()
+
+            rows = mcp_result.get("rows", [])
+            response = mcp_result.get("response_summary", "Query completed.")
+            sql_query = mcp_result.get("sql", "")
+            result_preview = rows[:50]
+
+            sql_block = dcc.Markdown(
+                f"```sql\n{sql_query}\n```",
+                style={'fontSize': '13px'},
+            )
+            results_block = dcc.Markdown(
+                _format_results_table(result_preview, max_rows=50),
+                style={'fontSize': '13px'},
+            )
+
+            db_calls = dcc.Markdown(
+                _format_tool_calls(mcp_result.get("db_tool_calls", [])),
+                style={'fontSize': '13px'},
+            )
+            viz_calls = dcc.Markdown(
+                _format_tool_calls(mcp_result.get("viz_tool_calls", [])),
+                style={'fontSize': '13px'},
+            )
+
+            sql_container = html.Div([
+                html.Details([
+                    html.Summary("DB MCP tool calls", style={'fontWeight': 'bold'}),
+                    db_calls,
+                ], open=False, style={'marginBottom': '12px'}),
+                html.Details([
+                    html.Summary("Visualization MCP tool calls", style={'fontWeight': 'bold'}),
+                    viz_calls,
+                ], open=False, style={'marginBottom': '12px'}),
+                html.Div(
+                    "Executed SQL",
+                    style={'fontWeight': 'bold', 'marginBottom': '6px'}
+                ),
+                sql_block,
+                html.Div(
+                    "Result preview",
+                    style={'fontWeight': 'bold', 'margin': '12px 0 6px 0'}
+                ),
+                results_block,
+            ], style={
+                'backgroundColor': '#F7F9FC',
+                'border': f'1px solid {UCONN_LIGHT_BLUE}',
+                'borderRadius': '6px',
+                'padding': '12px',
+            })
+
+            visualization_component = html.Div()
+            if show_visualization:
+                visualization_component = render_visualization_spec(
+                    mcp_result.get("visualization_spec", {})
+                )
+
+            return response, sql_container, {'display': 'block'}, visualization_component
+
         sql_prompt = _build_sql_prompt(user_text)
         raw_sql_response = _call_llm(model_value, sql_prompt)
         sql_payload = _parse_json_response(raw_sql_response)

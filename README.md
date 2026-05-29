@@ -2,6 +2,10 @@
 
 Research dashboard hosted on UConn infrastructure for exploring structural variants in the Kids First orofacial cleft cohort. Internal-only access; intended for collaborative analysis by the research team.
 
+## Instructions to run mcp
+- `PYTHONPATH=. python mcp_servers/ofc_db_server.py`
+- `PYTHONPATH=. python mcp_servers/ofc_visualization_server.py`
+
 ## What it does
 - Visualizes family and population SVs with IGV.js tracks
 - Surfaces long-range gene interactions and inheritance patterns
