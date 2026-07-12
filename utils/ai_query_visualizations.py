@@ -10,6 +10,7 @@ import plotly.express as px
 from dash import dcc, html
 import dash_bio as dashbio
 
+from app import build_local_igv_reference
 from utils.database import get_tracks_for_genome
 
 ALLOWED_VISUALIZATION_KINDS = {
@@ -254,10 +255,10 @@ def render_igv_gene_window(spec: VisualizationSpec):
     if not locus:
         return html.Div("No locus available for IGV.")
 
-    tracks = get_tracks_for_genome(spec.chrom, include_interactions=False)
+    tracks = get_tracks_for_genome(spec.chrom)
     return dashbio.Igv(
         id="ai-query-igv",
-        genome="hg38",
+        reference=build_local_igv_reference(spec.chrom),
         locus=locus,
         tracks=tracks,
         style={"height": "650px", "width": "100%"},
@@ -269,10 +270,10 @@ def render_family_igv_compare(spec: VisualizationSpec):
     if not locus:
         return html.Div("No locus available for IGV.")
 
-    tracks = get_tracks_for_genome(spec.chrom, include_interactions=False)
+    tracks = get_tracks_for_genome(spec.chrom)
     return dashbio.Igv(
         id="ai-query-family-igv",
-        genome="hg38",
+        reference=build_local_igv_reference(spec.chrom),
         locus=locus,
         tracks=tracks,
         style={"height": "650px", "width": "100%"},
@@ -284,7 +285,7 @@ def render_population_igv_gene_window(spec: VisualizationSpec):
     if not locus:
         return html.Div("No locus available for IGV.")
 
-    tracks = get_tracks_for_genome(spec.chrom, include_interactions=False)
+    tracks = get_tracks_for_genome(spec.chrom)
     try:
         from pages.population_svs import create_population_tracks
         population_tracks = create_population_tracks(spec.chrom)
@@ -293,7 +294,7 @@ def render_population_igv_gene_window(spec: VisualizationSpec):
 
     return dashbio.Igv(
         id="ai-query-population-igv",
-        genome="hg38",
+        reference=build_local_igv_reference(spec.chrom),
         locus=locus,
         tracks=tracks + population_tracks,
         style={"height": "650px", "width": "100%"},

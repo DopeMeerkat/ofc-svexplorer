@@ -24,6 +24,9 @@ from pages import population_svs
 from pages import dashboard
 from pages import visualization_uploader  # Add visualization uploader import
 from pages import ai_query
+from pages import database
+from pages import mcp_query
+from pages import pathway
 
 # Define the app layout with components
 def layout():
@@ -97,6 +100,8 @@ def display_page(pathname, selected_gene):
     # Handle normal page routing
     if pathname == '/table':
         return table.page_layout(), '/table'
+    if pathname == '/database':
+        return database.page_layout(), '/database'
     if pathname == '/dashboard':
         return dashboard.page_layout(), '/dashboard'
     if pathname == '/visualization-upload':
@@ -126,6 +131,10 @@ def display_page(pathname, selected_gene):
         return population_svs.page_layout(selected_gene=selected_gene), '/population'
     if pathname == '/ai-query':
         return ai_query.page_layout(), '/ai-query'
+    if pathname == '/mcp-query':
+        return mcp_query.page_layout(), '/mcp-query'
+    if pathname == '/pathway':
+        return pathway.page_layout(), '/pathway'
     # Default and /summary
     return summary.page_layout(), '/summary'
 

@@ -11,7 +11,7 @@ import json
 import pandas as pd
 from dash.exceptions import PreventUpdate
 
-from app import app, HOSTED_GENOME_DICT
+from app import app, HOSTED_GENOME_DICT, build_local_igv_reference
 from components.family_gene_search import create_family_gene_search
 from utils.styling import uconn_styles, UCONN_NAVY, UCONN_LIGHT_BLUE
 from utils.database import (
@@ -345,7 +345,7 @@ def update_family_igv_browser(n_clicks, family_id, chrom, selected_gene):
         # Create the IGV browser component with direct properties
         igv_browser = dashbio.Igv(
             id='family-igv-browser',
-            genome='hg38',
+            reference=build_local_igv_reference(chrom),
             tracks=all_tracks,
             locus=browser_locus,
             style={'height': '700px', 'width': '100%'}
@@ -401,7 +401,7 @@ def update_family_igv_browser(n_clicks, family_id, chrom, selected_gene):
         # Create the IGV browser component
         return dashbio.Igv(
             id='family-igv',
-            genome='hg38',
+            reference=build_local_igv_reference(chrom),
             locus=locus,
             tracks=all_tracks
         )

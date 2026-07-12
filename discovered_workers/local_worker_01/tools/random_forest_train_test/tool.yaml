@@ -1,0 +1,67 @@
+id: random_forest_train_test
+version: 1.0.0
+display_name: Random Forest Train/Test
+description: >
+  Runs repeated (n_runs) random forest train/test splits and summarizes
+  held-out accuracy, balanced accuracy, F1, and ROC AUC, plus aggregated
+  feature importance with standard deviation.
+entrypoint:
+  command: python run.py
+inputs:
+  input_path:
+    type: file
+    required: true
+    description: Path to input CSV with features and target column.
+  output_dir:
+    type: string
+    required: true
+    description: Directory where output files will be written.
+  target_column:
+    type: string
+    required: false
+    default: null
+    description: Name of the target column. Defaults to the last column.
+  n_runs:
+    type: integer
+    required: false
+    default: 100
+    description: Number of train/test repetitions.
+  n_estimators:
+    type: integer
+    required: false
+    default: 50
+    description: Number of trees per random forest.
+  test_size:
+    type: float
+    required: false
+    default: 0.2
+    description: Fraction of data held out per run.
+  random_state:
+    type: integer
+    required: false
+    default: 42
+    description: Base random seed (incremented per run).
+outputs:
+  metrics:
+    path: metrics.json
+    type: json
+    description: Mean/std summary of held-out metrics and aggregated feature importance.
+  feature_importance:
+    path: feature_importance.csv
+    type: csv
+    description: Features sorted by mean importance descending, with Std column.
+  train_test_metrics:
+    path: train_test_metrics.csv
+    type: csv
+    description: Per-run accuracy, balanced accuracy, F1, and ROC AUC values.
+  results:
+    path: results.csv
+    type: csv
+    description: Echoed copy of the input data.
+  plot:
+    path: plot.json
+    type: plotly_json
+    description: Horizontal bar chart of mean feature importance with error bars.
+constraints:
+  requires_gpu: false
+  max_runtime_seconds: 600

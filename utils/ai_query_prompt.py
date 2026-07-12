@@ -37,14 +37,18 @@ Database notes:
 - phenotype columns: family_id, part_id, bio_id, bam_id, pheno, child, proband, affected, gender, race
 - phenotype_svs columns: sample, id, type, chrom, start, end, length, likelihood, methods, freq, pheno, gender
 - background_svs columns: sample, id, type, chrom, start, end, length, likelihood, methods, freq, pheno, gender, pop_code, superpop_code
+- exons columns: exon_id, gene_id, transcript_id, chrom, exon_start, exon_end, exon_number, strand, source
 - phenotype_svs.sample matches phenotype.bam_id
 - genes.x1/x2 are gene coordinates
 - phenotype_svs.start/end are SV coordinates
+- exons.exon_start/exon_end are exon coordinates; exons.chrom matches phenotype_svs.chrom
+- Do not use the exons table by default. Only use exons when the user explicitly asks about exons, exonic regions, or exon overlaps
+- If the user explicitly asks for SVs overlapping exons, use the exons table with the exon overlap coordinate predicate
 - child=1 means child, child=0 means parent
 - Use role='mother' for child=0 and gender='F'
 - Use role='father' for child=0 and gender='M'
 - For 'inside gene', use svs_contained_in_gene_window
-- For 'overlap', 'affecting', or 'near gene', use svs_overlapping_gene_window
+- For 'overlap', 'affecting', or 'near gene', use svs_overlapping_gene_window unless the user explicitly asks for exon overlap
 - Optional visualization_kind values: none, bar_chart, pie_chart, histogram, scatter_plot, igv_gene_window, family_igv_compare, population_igv_gene_window
 """
 

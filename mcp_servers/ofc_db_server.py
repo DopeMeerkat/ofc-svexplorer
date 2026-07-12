@@ -107,6 +107,8 @@ class MCPHandler(BaseHTTPRequestHandler):
                     "family membership queries",
                     "family SV queries",
                     "background cohort summaries",
+                    "exon annotation queries",
+                    "SV/exon overlap queries",
                     "count/distribution queries",
                 ],
             })

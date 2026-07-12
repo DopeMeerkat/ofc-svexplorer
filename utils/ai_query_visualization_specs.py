@@ -10,6 +10,7 @@ import plotly.express as px
 from dash import dcc, html
 import dash_bio as dashbio
 
+from app import build_local_igv_reference
 from utils.database import get_tracks_for_genome
 
 
@@ -51,10 +52,10 @@ def render_visualization_spec(spec: dict[str, Any]):
         chrom = spec.get("chrom")
         if not locus or not chrom:
             return html.Div("No locus available for IGV.")
-        tracks = get_tracks_for_genome(chrom, include_interactions=False)
+        tracks = get_tracks_for_genome(chrom)
         return dashbio.Igv(
             id="ai-query-mcp-igv",
-            genome="hg38",
+            reference=build_local_igv_reference(chrom),
             locus=locus,
             tracks=tracks,
             style={"height": "650px", "width": "100%"},

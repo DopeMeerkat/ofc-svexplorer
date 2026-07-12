@@ -15,6 +15,20 @@ app = Dash(
     ]
 )
 
+
+
+def build_local_igv_reference(chrom):
+    chrom = str(chrom)
+    return {
+        "id": f"db-{chrom}",
+        "name": f"Database coordinates ({chrom})",
+        "fastaURL": f"/_igv_local_reference/{chrom}.fa",
+        "indexURL": f"/_igv_local_reference/{chrom}.fa.fai",
+        "indexed": True,
+        "wholeGenomeView": False,
+        "chromosomeOrder": [chrom],
+    }
+
 # UCONN Colors
 UCONN_NAVY = '#02254B'
 UCONN_LIGHT_BLUE = '#9ECEEB'
@@ -225,27 +239,15 @@ def create_uconn_header():
             id='main-tabs',
             value='/summary',
             children=[
-                dcc.Tab(label='Summary', value='/summary',
-                        style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
+                # dcc.Tab(label='Summary', value='/summary',
+                #         style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
+                #         selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
+                # ),
                 dcc.Tab(label='Genome Browser', value='/',
                         style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
                 dcc.Tab(label='Table', value='/table',
-                        style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Image 1', value='/image1',
-                        style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Image 2', value='/image2',
-                        style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Image 3', value='/image3',
                         style={'color': UCONN_WHITE, 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': UCONN_WHITE, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
@@ -561,7 +563,7 @@ def return_igv(chrom, locus):
             html.H3(f"Viewing Chromosome: {chrom}", style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
             dashbio.Igv(
                 id='default-igv',
-                genome='hg38',  # Using hg38 as reference, adjust if needed
+                reference=build_local_igv_reference(chrom),
                 locus=view_locus,
                 minimumBases=100,
                 tracks=tracks,

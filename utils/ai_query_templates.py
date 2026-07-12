@@ -282,6 +282,45 @@ QUERY_TEMPLATES: dict[str, dict[str, Any]] = {
         "result_kind": "table",
         "visualization_kind": "population_igv_gene_window",
     },
+    "svs_overlapping_exons": {
+        "description": "Find phenotype SVs that overlap one or more exon intervals from the exons table.",
+        "sql": """
+            SELECT
+                ps.sample AS sample_id,
+                ps.id AS sv_id,
+                ps.type AS sv_type,
+                ps.chrom,
+                ps.start AS sv_start,
+                ps."end" AS sv_end,
+                ps.length AS sv_length,
+                e.gene_id,
+                e.transcript_id,
+                e.exon_number,
+                e.exon_start,
+                e.exon_end
+            FROM phenotype_svs ps
+            JOIN exons e
+                ON e.chrom = ps.chrom
+               AND ps.start <= e.exon_end
+               AND ps."end" >= e.exon_start
+            WHERE (:chromosome IS NULL OR ps.chrom = :chromosome)
+              AND (:sample IS NULL OR ps.sample = :sample)
+              AND (:sv_type IS NULL OR ps.type = :sv_type)
+              AND (:phenotype IS NULL OR LOWER(ps.pheno) = LOWER(:phenotype))
+            ORDER BY ps.chrom, ps.start, e.exon_start
+            LIMIT :limit;
+        """,
+        "required_args": [],
+        "default_args": {
+            "chromosome": None,
+            "sample": None,
+            "sv_type": None,
+            "phenotype": None,
+            "limit": 100,
+        },
+        "result_kind": "table",
+        "visualization_kind": "none",
+    },
     "family_svs_overlapping_gene_window": {
         "description": "Find family member SVs overlapping a gene window.",
         "sql": """

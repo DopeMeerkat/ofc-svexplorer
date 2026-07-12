@@ -5,29 +5,57 @@ This module handles all database connections and queries.
 
 import sqlite3
 import os.path
+import re
 import pandas as pd
 
 # Database path
 DB_PATH = '/data/cellvar.db/cellvar.db'
 
 
-def run_readonly_query(query, params=None, db_path=DB_PATH, limit=5000):
-    """
-    Execute a read-only SELECT query with optional parameters.
-    """
+READONLY_BLOCKED_KEYWORDS = {
+    "alter", "analyze", "attach", "begin", "commit", "create", "delete",
+    "detach", "drop", "insert", "pragma", "reindex", "release",
+    "replace", "rollback", "savepoint", "transaction", "update", "vacuum",
+}
+
+
+def _sql_without_comments_or_literals(query):
+    """Remove SQL comments and quoted values before keyword validation."""
+    return re.sub(
+        r"(?is)(--[^\n]*|/\*.*?\*/|'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\")",
+        " ",
+        query,
+    )
+
+
+def validate_readonly_query(query):
+    """Return one normalized query after rejecting database mutations."""
     if not query or not isinstance(query, str):
         raise ValueError("Query must be a non-empty string")
 
-    normalized = query.strip().lower()
-    if not normalized.startswith("select"):
-        raise ValueError("Only SELECT queries are allowed")
+    normalized = query.strip().rstrip(";").strip()
+    if not normalized:
+        raise ValueError("Query must be a non-empty string")
+    stripped = _sql_without_comments_or_literals(normalized)
+    if ";" in stripped:
+        raise ValueError("Only one query can be run at a time")
 
+    keywords = set(re.findall(r"\b[a-z_]+\b", stripped.lower()))
+    blocked = sorted(keywords & READONLY_BLOCKED_KEYWORDS)
+    if blocked:
+        raise ValueError(f"Query contains a prohibited operation: {blocked[0].upper()}")
+    return normalized
+
+
+def run_readonly_query(query, params=None, db_path=DB_PATH, limit=5000):
+    """
+    Execute a read-only query with optional parameters.
+    """
+    safe_query = validate_readonly_query(query)
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file {db_path} not found")
 
-    safe_query = query.strip().rstrip(";")
-    if "limit" not in normalized:
-        safe_query = f"SELECT * FROM ({safe_query}) LIMIT {int(limit)}"
+    safe_query = f"SELECT * FROM ({safe_query}) LIMIT {int(limit)}"
 
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
@@ -126,14 +154,24 @@ def get_tracks_for_genome(chrom, db_path=DB_PATH):
         genes = cursor.fetchall()
         conn.close()
         
-        # Convert genes to BED format for IGV
-        bed_content = "\n".join([f"{g[1]}\t{g[2]}\t{g[3]}\t{g[0]}\t.\t{g[4]}" for g in genes])
-        
-        if bed_content:
+        # Render genes as inline features to avoid data URL parsing issues.
+        features = [
+            {
+                'chr': g[1],
+                'start': g[2],
+                'end': g[3],
+                'name': g[0],
+                'strand': g[4],
+            }
+            for g in genes
+        ]
+
+        if features:
             tracks.append({
                 'name': f'Genes ({chrom})',
-                'url': 'data:application/bed,' + bed_content,
+                'sourceType': 'annotation',
                 'format': 'bed',
+                'features': features,
                 'displayMode': 'EXPANDED'
             })
         
@@ -141,6 +179,89 @@ def get_tracks_for_genome(chrom, db_path=DB_PATH):
         
     except sqlite3.Error as e:
         print(f"Database error when fetching genes: {e}")
+        return []
+
+def get_exon_track_for_genome(chrom, db_path=DB_PATH, start=None, end=None):
+    """
+    Get exon annotation track for a specific chromosome or locus window.
+    """
+    tracks = []
+    if not os.path.exists(db_path):
+        return tracks
+
+    chrom = str(chrom)
+    chrom_without_prefix = chrom[3:] if chrom.lower().startswith("chr") else chrom
+    chrom_with_prefix = chrom if chrom.lower().startswith("chr") else f"chr{chrom}"
+
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name IN ('exons', 'exon')
+            ORDER BY CASE name WHEN 'exons' THEN 0 ELSE 1 END
+            LIMIT 1
+        """)
+        table_row = cursor.fetchone()
+        if not table_row:
+            conn.close()
+            return []
+
+        exon_table = table_row["name"]
+        params = [chrom_without_prefix, chrom_with_prefix]
+        where_clauses = ["chrom IN (?, ?)"]
+        if start is not None and end is not None:
+            where_clauses.append("exon_start <= ? AND exon_end >= ?")
+            params.extend([int(end), int(start)])
+
+        cursor.execute(f"""
+            SELECT exon_id, gene_id, transcript_id, chrom, exon_start, exon_end, exon_number, strand, source
+            FROM {exon_table}
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY exon_start
+        """, params)
+
+        exons = cursor.fetchall()
+        conn.close()
+
+        features = []
+        for exon in exons:
+            exon_number = exon["exon_number"]
+            exon_label = f"exon {exon_number}" if exon_number is not None else "exon"
+            transcript = exon["transcript_id"] or "Unknown transcript"
+            features.append({
+                "chr": chrom,
+                "start": exon["exon_start"],
+                "end": exon["exon_end"],
+                "name": f"{exon['gene_id']} {exon_label}",
+                "description": (
+                    f"Gene: {exon['gene_id']}<br>"
+                    f"Transcript: {transcript}<br>"
+                    f"Exon: {exon_number if exon_number is not None else 'N/A'}<br>"
+                    f"Strand: {exon['strand'] or 'N/A'}<br>"
+                    f"Source: {exon['source'] or 'N/A'}"
+                ),
+                "strand": exon["strand"],
+            })
+
+        if features:
+            tracks.append({
+                "name": f"Exons ({chrom})",
+                "sourceType": "annotation",
+                "format": "bed",
+                "features": features,
+                "displayMode": "SQUISHED",
+                "color": "#2E8B57",
+                "height": 120,
+            })
+
+        return tracks
+
+    except sqlite3.Error as e:
+        print(f"Database error when fetching exons: {e}")
         return []
 
 def check_database_connection(db_path=DB_PATH):

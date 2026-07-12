@@ -1,0 +1,52 @@
+id: random_forest
+version: 1.0.0
+display_name: Random Forest Classifier
+description: >
+  Trains a random forest classifier on phenotype-feature data and
+  reports feature importance scores and held-out accuracy metrics.
+entrypoint:
+  command: python run.py
+inputs:
+  input_path:
+    type: file
+    required: true
+    description: Path to input CSV with features and target column.
+  output_dir:
+    type: string
+    required: true
+    description: Directory where output files will be written.
+  target_column:
+    type: string
+    required: false
+    default: null
+    description: Name of the target column. Defaults to the last column.
+  n_estimators:
+    type: integer
+    required: false
+    default: 300
+    description: Number of trees in the forest.
+  random_state:
+    type: integer
+    required: false
+    default: 42
+    description: Random seed for reproducibility.
+outputs:
+  metrics:
+    path: metrics.json
+    type: json
+    description: Accuracy metrics and execution metadata.
+  feature_importance:
+    path: feature_importance.csv
+    type: csv
+    description: Features sorted by importance score descending.
+  results:
+    path: results.csv
+    type: csv
+    description: Echoed copy of the input data.
+  plot:
+    path: plot.json
+    type: plotly_json
+    description: Interactive horizontal bar chart of feature importance.
+constraints:
+  requires_gpu: false
+  max_runtime_seconds: 300

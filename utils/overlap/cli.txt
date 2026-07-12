@@ -1,0 +1,3 @@
+python genomic_overlap.py --input "/home/kec16164/web_igv/utils/overlap/exon_test1.csv" --output "/home/kec16164/web_igv/utils/overlap/exon_test_output.csv" --margin "2000" --refresh-cache
+
+python exon_overlap.py --input "/home/kec16164/web_igv/utils/overlap/exon_test1.csv" --output "/home/kec16164/web_igv/utils/overlap/exon_test_output.csv" --margin "0" --refresh-cache

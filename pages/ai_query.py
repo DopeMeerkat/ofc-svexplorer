@@ -29,6 +29,7 @@ SCHEMA_SUMMARY = (
     "- phenotype(family_id, part_id, bio_id, bam_id, pheno, child, proband, affected, gender, race)\n"
     "- phenotype_svs(sample, id, type, chrom, start, end, length, likelihood, methods, freq, pheno, gender)\n"
     "- background_svs(sample, id, type, chrom, start, end, length, likelihood, freq, pheno, gender, pop_code, superpop_code)\n"
+    "- exons(exon_id, gene_id, transcript_id, chrom, exon_start, exon_end, exon_number, strand, source)\n"
     "Notes:\n"
     "- genes.x1/x2 are coordinates and length is gene length.\n"
     "- phenotype.child=1 means child, 0 means parent.\n"
@@ -37,18 +38,24 @@ SCHEMA_SUMMARY = (
     "- phenotype.gender is 'M' or 'F'.\n"
     # "- bam_id (phenotype) and sample (phenotype_svs) are the person/sample identifiers.\n"
     "- phenotype_svs.sample matches phenotype.bam_id.\n"
+    "- exons.chrom uses the same chr-prefixed chromosome format as phenotype_svs.chrom.\n"
+    "- Do not use the exons table by default. Only use exons when the user explicitly asks about exons, exonic regions, or exon overlaps.\n"
+    "- If and only if the user asks for exon overlap, join phenotype_svs ps to exons e on e.chrom = ps.chrom AND ps.start <= e.exon_end AND ps.\"end\" >= e.exon_start.\n"
+    "- For SVs overlapping a gene such as DOT1L, use genes joined to phenotype_svs; do not join exons unless exons are explicitly requested.\n"
+    "- Include exons.gene_id, exons.transcript_id, exon_number, exon_start, and exon_end when the user asks which exons were overlapped.\n"
     "- Use LOWER(pheno) when matching CL/CLP to be safe.\n"
     "- There is no table named samples; use phenotype for bam_id and pheno.\n"
-    "- Chromosomes in genes are: chr1-22, chrX, chrY (see DISTINCT chrom list).\n"
+    "- Chromosomes in genes, phenotype_svs, and exons are chr-prefixed: chr1-22, chrX, chrY.\n"
     "- Default to phenotype_svs for person-level queries; use sample as the person id.\n"
-    "- Avoid joins unless needed (e.g., family_id questions).\n"
+    "- Avoid joins unless needed. Gene-overlap questions need genes + phenotype_svs, not exons.\n"
     "Example queries:\n"
     "- SELECT length FROM genes WHERE id = 'FAM89B' LIMIT 1;\n"
     "- SELECT id, length FROM genes WHERE id IN ('FAM89B', 'ARGN');\n"
     "- SELECT bam_id, pheno FROM phenotype WHERE child = 1 AND LOWER(pheno) IN ('cl', 'clp') LIMIT 25;\n"
     "- SELECT bam_id, pheno FROM phenotype WHERE child = 0 AND LOWER(pheno) IN ('cl', 'clp') LIMIT 25;\n"
+    "- SELECT ps.id AS sv_id, ps.sample, ps.chrom, ps.start, ps.\"end\", g.id AS gene_id FROM genes g JOIN phenotype_svs ps ON ps.chrom = g.chrom AND ps.start <= g.x2 AND ps.\"end\" >= g.x1 WHERE g.id = 'DOT1L' LIMIT 25;\n"
+    "- SELECT ps.id AS sv_id, ps.sample, ps.chrom, ps.start, ps.\"end\", e.gene_id, e.exon_number FROM phenotype_svs ps JOIN exons e ON e.chrom = ps.chrom AND ps.start <= e.exon_end AND ps.\"end\" >= e.exon_start LIMIT 25;\n"
 )
-
 MCP_ENABLED = os.getenv("MCP_ENABLED", "true").lower() == "true"
 ALLOW_RAW_SQL_FALLBACK = False
 
@@ -69,7 +76,8 @@ def _build_sql_prompt(user_text: str) -> str:
         "- Output JSON only, no extra text or markdown.\n"
         "- JSON keys: sql (string), intent (string), confidence (0-1).\n"
         "- Use only SELECT statements, no writes.\n"
-        "- Use only these tables: genes, phenotype, phenotype_svs, background_svs.\n"
+        "- Use only these tables: genes, phenotype, phenotype_svs, background_svs, exons.\n"
+        "- When joining tables, always qualify id columns with table aliases such as ps.id, tg.id, or g.id.\n"
         "- If a query is not possible, return sql as an empty string and confidence 0.0.\n\n"
         f"{SCHEMA_SUMMARY}"
         f"{extra_context}\n"
@@ -511,7 +519,7 @@ def handle_ai_query(n_clicks, user_text, model_value, show_visualization_values)
                 'borderRadius': '6px',
                 'padding': '12px',
             })
-            return response, sql_container, {'display': 'block'}, html.Div()
+            # return response, sql_container, {'display': 'block'}, html.Div()
         except Exception as fallback_exc:
             return f"Error running query: {fallback_exc}", None, {'display': 'none'}, html.Div()
     except Exception as exc:

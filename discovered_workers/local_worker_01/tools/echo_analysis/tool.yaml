@@ -1,0 +1,35 @@
+id: echo_analysis
+version: 1.0.0
+display_name: Echo Analysis
+description: >
+  Dummy analysis tool that reads an input file (CSV or JSON),
+  echoes its contents as structured output files, and computes
+  minimal descriptive statistics. Used to verify the discovery
+  and execution pipeline end-to-end.
+entrypoint:
+  command: python run.py
+inputs:
+  input_path:
+    type: file
+    required: true
+    description: Path to input CSV or JSON file with analysis-ready data.
+  output_dir:
+    type: string
+    required: true
+    description: Directory where output files will be written.
+outputs:
+  metrics:
+    path: metrics.json
+    type: json
+    description: Execution metadata and basic dataset statistics.
+  results:
+    path: results.csv
+    type: csv
+    description: Echoed copy of the input data with a derived column.
+  stdout_log:
+    path: stdout.log
+    type: text
+    description: Captured standard output from the run.
+constraints:
+  requires_gpu: false
+  max_runtime_seconds: 30

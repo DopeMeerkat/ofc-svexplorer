@@ -2,11 +2,13 @@
 Genome browser page for the UCONN OFC SV Browser application.
 """
 
-from dash import html, dcc, Input, Output, State, callback
+from dash import html, dcc, Input, Output, State, callback, clientside_callback
 import dash_bio as dashbio
 from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE, uconn_styles
 from utils.database import get_tracks_for_genome, check_database_connection
+from app import build_local_igv_reference
 from components.gene_search import create_gene_search
+import os
 import os.path
 
 def page_layout(selected_gene=None):
@@ -33,6 +35,17 @@ def page_layout(selected_gene=None):
             print(f"Setting locus to: {chrom}:{x1}-{x2}")
             locus = f"{chrom}:{x1}-{x2}"
     
+    debug_controls = []
+    if os.getenv("IGV_DEBUG_PANEL", "false").lower() == "true":
+        debug_controls = [
+            dcc.Interval(id='igv-client-ping', interval=2000, n_intervals=0),
+            html.Div(id='igv-client-status', style={
+                'fontSize': '12px',
+                'color': UCONN_NAVY,
+                'marginBottom': '10px',
+            }),
+        ]
+
     return html.Div([
         html.Div([
             html.Div([
@@ -68,12 +81,61 @@ def page_layout(selected_gene=None):
                 id='db-status',
                 children=check_database_connection(),
                 style=uconn_styles['statusBar']
-            )
+            ),
+            *debug_controls
         ], style=uconn_styles['content']),
         
         # Hidden store to keep track of gene locus
         dcc.Store(id='current-locus', data=locus)
     ], style={'maxWidth': '1200px', 'margin': '0 auto', 'padding': '0 20px'})
+
+clientside_callback(
+    """
+    function(n) {
+        try {
+            var igvStatus = window.igv ? 'present' : 'missing';
+            var hasDashBio = false;
+            var registry = window.__dash_component_registry__ || window.dash_component_registry || window._dash_component_registry;
+            if (registry) {
+                var reg = registry.registry || registry._components || registry.components || registry;
+                if (reg) {
+                    if (reg['dash_bio']) {
+                        hasDashBio = true;
+                    } else {
+                        var keys = Object.keys(reg);
+                        for (var i = 0; i < keys.length; i++) {
+                            if (keys[i].indexOf('dash_bio') !== -1) {
+                                hasDashBio = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            var scriptTag = document.querySelector("script[src*='dash_bio/bundle']") ? 'yes' : 'no';
+            var resourceLoaded = 'unknown';
+            if (window.performance && performance.getEntriesByType) {
+                var entries = performance.getEntriesByType('resource');
+                resourceLoaded = 'no';
+                for (var j = 0; j < entries.length; j++) {
+                    if (entries[j].name.indexOf('dash_bio/bundle') !== -1) {
+                        resourceLoaded = 'yes';
+                        break;
+                    }
+                }
+            }
+            return 'IGV client status: window.igv is ' + igvStatus
+                + '; dash_bio registered=' + (hasDashBio ? 'yes' : 'no')
+                + '; script tag=' + scriptTag
+                + '; resource loaded=' + resourceLoaded;
+        } catch (e) {
+            return 'IGV client status: error checking window.igv: ' + e;
+        }
+    }
+    """,
+    Output('igv-client-status', 'children'),
+    Input('igv-client-ping', 'n_intervals'),
+)
 
 # Return the IGV component with the selected genome.
 @callback(
@@ -85,6 +147,20 @@ def return_igv(chrom, locus):
     """
     Return the IGV component for the selected chromosome.
     """
+    if os.getenv("IGV_MINIMAL_TEST", "false").lower() == "true":
+        return html.Div([
+            html.Div([
+                html.H3("IGV Minimal Test", style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
+                dashbio.Igv(
+                    id='default-igv',
+                    reference=build_local_igv_reference('1'),
+                    locus='1:1-1000000',
+                    tracks=[],
+                    style={'width': '100%', 'height': '600px', 'border': f'1px solid {UCONN_LIGHT_BLUE}'}
+                )
+            ], style={'padding': '15px', 'backgroundColor': '#FFFFFF', 'borderRadius': '5px'})
+        ])
+
     if not chrom:
         return html.Div(
             "Please select a chromosome from the dropdown",
@@ -108,15 +184,46 @@ def return_igv(chrom, locus):
     # Track count feedback
     track_info = f"{len(tracks)} track(s) loaded"
     
+    debug_panel = None
+    if os.getenv("IGV_DEBUG_PANEL", "false").lower() == "true":
+        debug_rows = []
+        for track in tracks:
+            debug_rows.append({
+                "name": track.get("name"),
+                "format": track.get("format"),
+                "url_len": len(track.get("url", "")) if track.get("url") else 0,
+                "feature_count": len(track.get("features", [])) if track.get("features") else 0,
+            })
+        debug_panel = html.Pre(
+            "IGV debug\n"
+            f"chrom={chrom}\n"
+            f"locus={view_locus}\n"
+            f"tracks={len(tracks)}\n"
+            + "\n".join(
+                f"- {row['name']} | {row['format']} | url_len={row['url_len']} | features={row['feature_count']}"
+                for row in debug_rows
+            ),
+            style={
+                'whiteSpace': 'pre-wrap',
+                'fontSize': '12px',
+                'backgroundColor': '#F7F9FC',
+                'border': f'1px solid {UCONN_LIGHT_BLUE}',
+                'borderRadius': '4px',
+                'padding': '8px',
+                'marginBottom': '10px',
+            },
+        )
+
     return html.Div([
         html.Div([
             html.H3(f"Viewing Chromosome: {chrom}", style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
             html.Div([
                 html.P(track_info, style={'fontSize': '14px', 'color': UCONN_NAVY, 'marginBottom': '10px'})
             ]),
+            debug_panel if debug_panel else html.Div(),
             dashbio.Igv(
                 id='default-igv',
-                genome='hg38',  # Using hg38 as reference, adjust if needed
+                reference=build_local_igv_reference(chrom),
                 locus=view_locus,
                 minimumBases=100,
                 tracks=tracks,

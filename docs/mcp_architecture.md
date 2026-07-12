@@ -11,7 +11,8 @@ AI Query orchestrator
     ↓
 MCP client manager
     ├── DB MCP server
-    └── Visualization MCP server
+    ├── Visualization MCP server
+    └── Overlap MCP server
 ```
 
 - The Dash app is the MCP host.
@@ -23,6 +24,7 @@ MCP client manager
 - Dash app: 127.0.0.1:8002
 - DB MCP server: 127.0.0.1:8101
 - Visualization MCP server: 127.0.0.1:8102
+- Overlap MCP server: 127.0.0.1:8103
 - Ollama: 127.0.0.1:11434
 
 ## Feature Flags
@@ -32,6 +34,7 @@ MCP_ENABLED=false
 MCP_TRANSPORT=http
 MCP_DB_SERVER_URL=http://127.0.0.1:8101/mcp
 MCP_VIZ_SERVER_URL=http://127.0.0.1:8102/mcp
+MCP_OVERLAP_SERVER_URL=http://127.0.0.1:8103/mcp
 MCP_TIMEOUT_SECONDS=30
 ```
 
@@ -53,11 +56,17 @@ MCP_TIMEOUT_SECONDS=30
 - build_table_spec
 - build_igv_gene_view_spec
 
+### Overlap MCP
+- health_check
+- get_supported_overlap_rules
+- annotate_overlap
+
 ## Local Run
 
 ```
 python mcp_servers/ofc_db_server.py
 python mcp_servers/ofc_visualization_server.py
+python mcp_servers/ofc_overlap_server.py
 MCP_ENABLED=true python run.py
 ```
 

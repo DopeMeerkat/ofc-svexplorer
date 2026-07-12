@@ -1,0 +1,14 @@
+worker_id: local_worker_01
+display_name: Local Simulated Worker 01
+description: >
+  Same-machine simulation of an external compute worker for
+  tool discovery and execution prototyping. Intended to act as
+  a stand-in for a remote desktop or lab compute machine.
+simulated: true
+tools_directory: tools/
+resources:
+  cpu_cores: 4
+  memory_gb: 8
+  gpu:
+    available: false
+    model: null
