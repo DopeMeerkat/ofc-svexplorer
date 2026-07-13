@@ -6,10 +6,11 @@ import base64
 import io
 import re
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import dash
 import pandas as pd
-from dash import Input, Output, State, callback, dash_table, dcc, html
+from dash import Input, Output, State, callback, dash_table, dcc, html, no_update
 import dash_cytoscape as cyto
 
 from pathway.network_app_rel import (
@@ -58,6 +59,14 @@ BASE_STYLESHEET = build_stylesheet() + [
         "style": {"opacity": DIMMED_OPACITY},
     },
 ]
+
+
+def _genes_from_search(search: str | None) -> set[str]:
+    if not search:
+        return set()
+    query = parse_qs(search.lstrip("?"))
+    raw_values = query.get("gene", []) + query.get("genes", [])
+    return parse_gene_query(" ".join(raw_values))
 
 
 def _button_style(background_color=UCONN_NAVY):
@@ -156,7 +165,10 @@ def _build_summary(query_genes: set[str]) -> str:
     return "\n".join(lines)
 
 
-def page_layout():
+def page_layout(search=None):
+    initial_genes = _genes_from_search(search)
+    initial_gene_text = ", ".join(sorted(initial_genes)) if initial_genes else "TP63, IRF6, GRHL3, HDAC3, EZH2"
+
     return html.Div(
         [
             html.H2(
@@ -170,7 +182,7 @@ def page_layout():
                             html.Label("Gene list", style={"fontWeight": "600", "color": UCONN_NAVY}),
                             dcc.Textarea(
                                 id="pathway-gene-input",
-                                value="TP63, IRF6, GRHL3, HDAC3, EZH2",
+                                value=initial_gene_text,
                                 placeholder="TP63, IRF6, GRHL3, HDAC3, EZH2",
                                 style={"width": "100%", "height": "84px", "marginTop": "6px"},
                             ),
@@ -329,15 +341,20 @@ def show_pathway_node_info(node_data):
     Output("pathway-enrichment-table", "data"),
     Input("pathway-highlight-button", "n_clicks"),
     Input("pathway-clear-button", "n_clicks"),
+    Input("url", "search"),
     State("pathway-gene-input", "value"),
     State("pathway-upload-genes-store", "data"),
-    prevent_initial_call=True,
+    prevent_initial_call=False,
 )
-def highlight_pathway_gene_hits(_highlight_clicks, _clear_clicks, query_text, uploaded_genes):
+def highlight_pathway_gene_hits(_highlight_clicks, _clear_clicks, search, query_text, uploaded_genes):
     if dash.ctx.triggered_id == "pathway-clear-button":
         return BASE_ELEMENTS, "Highlight cleared.", [], []
 
-    query_genes = parse_gene_query(query_text) | set(uploaded_genes or [])
+    url_genes = _genes_from_search(search)
+    if not _highlight_clicks and not url_genes:
+        return no_update, no_update, no_update, no_update
+
+    query_genes = (url_genes or parse_gene_query(query_text)) | set(uploaded_genes or [])
     if not query_genes:
         return BASE_ELEMENTS, "Enter gene names or upload a CSV containing gene symbols.", [], []
 

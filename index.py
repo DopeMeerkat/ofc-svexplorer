@@ -51,9 +51,10 @@ app.layout = layout()
     Output('page-content', 'children'),
     Output('main-tabs', 'value'),
     Input('url', 'pathname'),
+    Input('url', 'search'),
     State('selected-gene', 'data')
 )
-def display_page(pathname, selected_gene):
+def display_page(pathname, search, selected_gene):
     """
     Display the appropriate page based on URL path and selected gene
     """
@@ -134,7 +135,7 @@ def display_page(pathname, selected_gene):
     if pathname == '/mcp-query':
         return mcp_query.page_layout(), '/mcp-query'
     if pathname == '/pathway':
-        return pathway.page_layout(), '/pathway'
+        return pathway.page_layout(search=search), '/pathway'
     # Default and /summary
     return summary.page_layout(), '/summary'
 

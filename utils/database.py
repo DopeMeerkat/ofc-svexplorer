@@ -1272,10 +1272,30 @@ def get_sample_svs(bam_id, db_path=DB_PATH):
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT sample, id, type, chrom, start, "end", length, likelihood, methods, freq, pheno, gender
-            FROM phenotype_svs
-            WHERE sample = ?
-            ORDER BY chrom, start
+            SELECT
+                ps.sample,
+                ps.id,
+                ps.type,
+                ps.chrom,
+                ps.start,
+                ps."end",
+                ps.length,
+                ps.likelihood,
+                ps.methods,
+                ps.freq,
+                ps.pheno,
+                ps.gender,
+                GROUP_CONCAT(DISTINCT g.id) AS gene_ids
+            FROM phenotype_svs ps
+            LEFT JOIN genes g
+                ON g.chrom = ps.chrom
+               AND ps.start <= g.x2
+               AND ps."end" >= g.x1
+            WHERE ps.sample = ?
+            GROUP BY
+                ps.sample, ps.id, ps.type, ps.chrom, ps.start, ps."end",
+                ps.length, ps.likelihood, ps.methods, ps.freq, ps.pheno, ps.gender
+            ORDER BY ps.chrom, ps.start
         """, (bam_id,))
         
         svs = []
@@ -1315,12 +1335,18 @@ def create_family_tracks(family_members, db_path=DB_PATH):
         # Create track features
         features = []
         for sv in svs:
+            gene_ids = sv.get('gene_ids') or ''
+            primary_gene = gene_ids.split(',')[0] if gene_ids else ''
             feature = {
                 'chr': sv['chrom'],
                 'start': sv['start'],
                 'end': sv['end'],
                 'name': sv['id'],
-                'type': sv['type']
+                'type': sv['type'],
+                'gene': primary_gene,
+                'genes': gene_ids,
+                'pathwayGene': primary_gene,
+                'description': f"Gene(s): {gene_ids}" if gene_ids else ''
             }
             features.append(feature)
         
@@ -1351,12 +1377,18 @@ def create_family_tracks(family_members, db_path=DB_PATH):
         # Create track features
         features = []
         for sv in svs:
+            gene_ids = sv.get('gene_ids') or ''
+            primary_gene = gene_ids.split(',')[0] if gene_ids else ''
             feature = {
                 'chr': sv['chrom'],
                 'start': sv['start'],
                 'end': sv['end'],
                 'name': sv['id'],
-                'type': sv['type']
+                'type': sv['type'],
+                'gene': primary_gene,
+                'genes': gene_ids,
+                'pathwayGene': primary_gene,
+                'description': f"Gene(s): {gene_ids}" if gene_ids else ''
             }
             features.append(feature)
         
