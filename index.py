@@ -27,6 +27,8 @@ from pages import ai_query
 from pages import database
 from pages import mcp_query
 from pages import pathway
+from pages import case_study
+from pages import background_sv_density
 
 # Define the app layout with components
 def layout():
@@ -65,7 +67,7 @@ def display_page(pathname, search, selected_gene):
     # Special case for the family page - don't redirect when coming from the family page
     # even if a gene is selected
     if pathname == '/family':
-        return family_genomes.page_layout(selected_gene=selected_gene), '/family'
+        return family_genomes.page_layout(selected_gene=selected_gene, search=search), '/family'
         
     # If a gene is selected and the URL is changing to the genome browser ('/')
     if selected_gene and pathname == '/':
@@ -100,7 +102,7 @@ def display_page(pathname, search, selected_gene):
     
     # Handle normal page routing
     if pathname == '/table':
-        return table.page_layout(), '/table'
+        return table.page_layout(search=search), '/table'
     if pathname == '/database':
         return database.page_layout(), '/database'
     if pathname == '/dashboard':
@@ -108,8 +110,7 @@ def display_page(pathname, search, selected_gene):
     if pathname == '/visualization-upload':
         return visualization_uploader.page_layout(), '/visualization-upload'
     if pathname == '/':
-        # When navigating directly via tab, don't pass any gene
-        return genome_browser.page_layout(), '/'
+        return summary.page_layout(), '/summary'
     if pathname == '/go-terms':
         return image_pages.go_terms_page(), '/go-terms'
     # Image pages commented out as requested
@@ -127,21 +128,26 @@ def display_page(pathname, search, selected_gene):
         return circos.page_layout(), '/circos'
     if pathname == '/family':
         # Always pass selected_gene to family genomes page, it will handle it internally
-        return family_genomes.page_layout(selected_gene=selected_gene), '/family'
+        return family_genomes.page_layout(selected_gene=selected_gene, search=search), '/family'
     if pathname == '/population':
-        return population_svs.page_layout(selected_gene=selected_gene), '/population'
+        return population_svs.page_layout(selected_gene=selected_gene, search=search), '/population'
     if pathname == '/ai-query':
         return ai_query.page_layout(), '/ai-query'
     if pathname == '/mcp-query':
         return mcp_query.page_layout(), '/mcp-query'
     if pathname == '/pathway':
         return pathway.page_layout(search=search), '/pathway'
+    if pathname == '/case-study':
+        return case_study.page_layout(search=search), '/case-study'
+    if pathname == '/background-sv-density':
+        return background_sv_density.page_layout(), '/background-sv-density'
     # Default and /summary
     return summary.page_layout(), '/summary'
 
 # Callback to update the URL when a tab is clicked
 @callback(
     Output('url', 'pathname', allow_duplicate=True),
+    Output('url', 'search', allow_duplicate=True),
     Output('selected-gene', 'data', allow_duplicate=True),
     Input('main-tabs', 'value'),
     prevent_initial_call=True
@@ -151,4 +157,4 @@ def update_url_from_tab(tab_value):
     Update URL when a tab is clicked and clear gene selection
     """
     # When using tab navigation, clear any previously selected gene
-    return tab_value, None
+    return tab_value, '', None

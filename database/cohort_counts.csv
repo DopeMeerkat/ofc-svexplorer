@@ -1,0 +1,15 @@
+category,value,samples
+Phenotype,CL,52
+Phenotype,CLP,191
+Phenotype,Hypertelorism,1
+Phenotype,Normal,466
+Child status,Parent,472
+Child status,Child,238
+Proband status,Non-proband,472
+Proband status,Proband,238
+Affected status,Unaffected,467
+Affected status,Affected,243
+Gender,F,334
+Gender,M,376
+Race,African,383
+Race,Asian,327

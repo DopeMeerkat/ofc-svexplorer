@@ -1,38 +1,90 @@
+# Python/cache
 __pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
 .venv/
+venv/
+env/
+*.egg-info/
 
+# Secrets / local config
+.env
+*.env
 api_key.txt
+rclone/.env
 
+# rclone/local synced data
+rclone/cache/
+
+# SQLite databases / copied production data
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+cellvar.db/
+data/
+
+# Internal exploration and generated analysis outputs
+exploration/
+discovered_workers/results/
+
+# Large/intermediate analysis files
+*.parquet
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+
+# Local reports/notes
 summary.md
 deep-research-report.md
 aiquery.md
 instructions.md
 
+# Internal scripts / legacy local utilities
 childGenes.py
+assets/generate_proband_sv_inheritance.py
+assets/README_proband_sv_inheritance.md
+assets/summary.txt
+assets/ncbi_ids.txt
 
-discovered_workers/results/
-
-2pair_gene.parquet
-2pair_sv.parquet
-
-pathway/go_gene_annotations.csv
-pathway/nodes_e.csv
-pathway/edges_e.csv
-
-assets/table.csv
-assets/table_original.csv
+# Sensitive/sample-level exports
 assets/cellvar_chr19_table.csv
 assets/cellvar_ofc_children_table.csv
 assets/proband_sv_inheritance.csv
-assets/proband_sv_inheritance_20250812_143831.csv
-
+assets/proband_sv_inheritance_*.csv
 data/sample_sv_phenotypes.csv
 
+# Large source annotation files imported into SQLite
+assets/V4-hg38.Gene-Links.3D-Chromatin.txt
+assets/embryo.noccl.cCREs.bed
+
+# Internal/test-only asset scripts
+assets/test_*.py
+assets/dashboard_test.py
+scripts/test_*.py
+*_test.py
+
+# Scratch/backup source files
+*.py.new
+
+# Notebook scratch work, unless deliberately cleaned for publication
+*.ipynb
+
+# Overlap utility test inputs/outputs
 utils/overlap/low_freq_svs.csv
 utils/overlap/low_freq_test.csv
 utils/overlap/low_freq_svs_output.csv
 utils/overlap/low_freq_svs_test_output.csv
 utils/overlap/exon_test1.csv
 utils/overlap/exon_test_output.csv
-utils/overlap/hg38_refseq_exons.parquet
-utils/overlap/hg38_refseq_genes.parquet
+
+# Keep aggregate Database Overview cache files if explicitly added
+!database/*.csv
+!database/overview_summary.json

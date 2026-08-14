@@ -72,7 +72,7 @@ LAYOUT_CONFIGS = {
 NODE_COL_ALIASES = {
     "id": ["id", "NodeID", "node_id"],
     "label": ["label", "Label", "name"],
-    "type": ["type", "NodeType", "node_type"],
+    "type": ["type", "NodeType", "NoteType", "node_type"],
 }
 
 

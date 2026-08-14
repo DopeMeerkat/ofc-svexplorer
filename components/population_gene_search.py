@@ -4,16 +4,21 @@ This is a modified version that doesn't redirect to the genome browser.
 """
 
 from dash import html, dcc, Input, Output, State, callback, no_update
+from urllib.parse import urlencode
 from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE, uconn_styles
 from utils.database import search_genes
 
-def create_population_gene_search():
+def create_population_gene_search(initial_gene=None):
     """
     Create a gene search component for the Population SVs page
     
     Returns:
         dash.html.Div: Gene search component
     """
+    initial_gene_value = ''
+    if initial_gene:
+        initial_gene_value = initial_gene.get('Gene') or initial_gene.get('id') or ''
+
     return html.Div([
         html.H3('Search Genes', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
         html.P('Enter a gene name to search and navigate directly to that location:', style={'marginBottom': '10px'}),
@@ -21,6 +26,7 @@ def create_population_gene_search():
             dcc.Input(
                 id='pop-gene-search-input',
                 type='text',
+                value=initial_gene_value,
                 placeholder='Enter gene name...',
                 style={
                     'width': '70%', 
@@ -47,7 +53,7 @@ def create_population_gene_search():
         html.Div(id='pop-gene-search-results', children=[]),
         
         # Store for selected gene data
-        dcc.Store(id='pop-selected-gene-store', data=None)
+        dcc.Store(id='pop-selected-gene-store', data=initial_gene)
     ], style={'marginBottom': '30px'})
 
 # Callback for gene search functionality
@@ -89,6 +95,8 @@ def update_pop_search_results(n_clicks, search_term):
 # Callback to handle gene selection from search results
 @callback(
     Output('pop-selected-gene-store', 'data'),
+    Output('url', 'pathname', allow_duplicate=True),
+    Output('url', 'search', allow_duplicate=True),
     Input('pop-gene-search-dropdown', 'value'),
     State('pop-gene-search-data', 'data'),
     prevent_initial_call=True
@@ -98,7 +106,7 @@ def handle_pop_search_selection(selected_index, genes_data):
     Handle selection of a gene from search results
     """
     if selected_index is None or not genes_data:
-        return no_update
+        return no_update, no_update, no_update
     
     # Get the selected gene by index
     selected_gene = genes_data[int(selected_index)]
@@ -118,8 +126,8 @@ def handle_pop_search_selection(selected_index, genes_data):
     
     print(f"Population gene search returning gene dict: {gene_dict}")
     
-    # Return gene data without redirecting
-    return gene_dict
+    # Return gene data without redirecting, and sync the URL for shareability
+    return gene_dict, '/population', '?' + urlencode({'gene': gene_dict['Gene']})
 
 # Callback to handle Enter key in search input
 @callback(
@@ -134,3 +142,17 @@ def pop_search_on_enter(n_submit):
     if n_submit:
         return 1  # Simulate button click
     return no_update
+
+
+@callback(
+    Output('pop-gene-search-input', 'value'),
+    Input('pop-selected-gene-store', 'data'),
+    prevent_initial_call=True
+)
+def sync_pop_search_input_with_selection(selected_gene):
+    """Reflect preloaded or selected gene state in the search input."""
+    if not selected_gene:
+        return no_update
+    if selected_gene.get('type') == 'sv':
+        return no_update
+    return selected_gene.get('Gene') or selected_gene.get('id') or no_update

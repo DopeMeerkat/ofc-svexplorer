@@ -1,0 +1,32 @@
+body {
+  background: #f6fafd;
+  color: #1f2937;
+  font-family: "Open Sans", Arial, sans-serif;
+}
+
+.dash-table-container .dash-spreadsheet-container {
+  border-radius: 8px;
+}
+
+.Select-control,
+.Select-menu-outer,
+textarea,
+input[type="number"] {
+  border-color: #d8e2ea !important;
+  border-radius: 6px !important;
+}
+
+.Select-control:focus-within,
+textarea:focus,
+input[type="number"]:focus {
+  border-color: #9eceeb !important;
+  box-shadow: 0 0 0 2px rgba(158, 206, 235, 0.35) !important;
+}
+
+.js-plotly-plot .plotly .modebar {
+  opacity: 0.4;
+}
+
+.tab--selected {
+  border-top: 3px solid #9eceeb !important;
+}

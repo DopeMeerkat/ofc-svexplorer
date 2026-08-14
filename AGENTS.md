@@ -6,6 +6,10 @@ This is an internal UConn research dashboard for OFC/SV analysis. The app is a D
 
 The project is currently deployed on a school VM machine. Treat this as a server environment, not a local-only laptop setup. Deployment may involve `systemctl`, `nginx`, long-running processes, and ports proxied by nginx. Do not assume Docker, Kubernetes, Slurm, or cloud infrastructure unless explicitly introduced.
 
+The project is being prepared as a final publication-facing version. Specific sample IDs are sensitive and must not be displayed in the UI, logs, downloadable publication views, screenshots, or other user-facing outputs unless the user explicitly requests an internal-only exception. Prefer aggregate counts, anonymized labels, row numbers, or other non-identifying display values when sample-level data is needed.
+
+The publication-facing navigation should be reduced to these tabs/pages only: Summary, Database Overview, Table Inspection, IGV/Population, Pathway, and Case Study. The IGV/Population tab corresponds to the current Population SV functionality. The Family SV page exists in code and is useful internally, but do not include it in publication-facing documentation unless the user explicitly asks for internal/development material.
+
 The next intended architecture is **local discovery first**: simulate multiple external compute machines on the same VM before supporting actual remote machines. Create a project subdirectory that acts like a separate "machine" or worker node, with its own tools/scripts and metadata. The main app/MCP broker should discover tools from that local simulated worker before expanding to real networked desktops or lab machines.
 
 ## Commands
@@ -75,6 +79,36 @@ The next intended architecture is **local discovery first**: simulate multiple e
 * `utils/database_ai_query.py` appears duplicative/stale unless a caller explicitly imports it.
 * `main.py` is a large older standalone Dash app path; prefer `run.py` + `app.py` + `index.py` when changing the current app.
 
+## Recent Session Context
+
+These are current project decisions and implementation details from the latest publication-polish work:
+
+* `README.md` was rewritten as a practical user guide similar in tone/structure to `README_example1.md`. It documents Summary, Database Overview, Table Inspection, IGV/Population, Pathway, and Case Study. It intentionally does not document Family SV.
+* The Case Study page (`pages/case_study.py`) is currently a flat, grouped report-style page using the standard site content container. Do not restore separate rounded card/bubble sections. Thin horizontal dividers were removed at the user's request.
+* Population SV (`pages/population_svs.py`) optional annotation tracks now load for the entire selected chromosome, even when IGV jumps to a selected gene/SV locus. This differs intentionally from Family SV.
+* Family SV (`pages/family_genomes.py`) optional annotation tracks are interval-limited. If both a gene and an SV are selected, the IGV viewport should jump to the gene location while annotation tracks may include both the gene interval and SV interval. Existing family tracks should remain unchanged.
+* Family SV supports URL deep-linking. `/family?family=<Family_ID>&chrom=chrN&start=<int>&end=<int>` prefills the family dropdown, the hidden chromosome select, and the active locus. `pages/family_genomes.py` parses this via `_parse_search(search)` and `page_layout(selected_gene, search)`; `index.py` must pass `search` to the family page (there is an early `/family` handler in `display_page` that must also forward `search`).
+* The family IGV viewport uses `_gene_locus_from_selection`, which preserves a `locus` type for URL-prefilled coordinates. Viewport buffers: 50,000 bp for a URL-prefilled `locus`, 5,000 bp for a gene, 1,000 bp for a searched SV.
+* `update_family_igv_browser` intentionally has no `prevent_initial_call` so a URL prefill auto-loads IGV on page load; the body already no-ops when `n_clicks=0`.
+* Family SV optional annotation tracks load from a 100,000 bp buffer around the active gene/SV intervals via `_expand_loci(loci, buffer_bp=100000)`, so enhancer, exon, promoter, insulator, and cCRE tracks include flanking context. Do not confuse this with the Population page, which loads annotation tracks chromosome-wide.
+* Enhancer candidate tracks should be OFC-relevant only. The selected `cell` labels are `MESENCHYMAL` and `NEURALCREST` for `poised_enhancer_candidates` and `active_enhancer_candidates`.
+* The active database tables were trimmed in place after backup copies were created:
+  * `poised_enhancer_candidates_backup` keeps the original full poised enhancer table.
+  * `active_enhancer_candidates_backup` keeps the original full active enhancer table.
+  * `noccl_cCREs_backup` keeps the active cCRE table as it existed before the latest trim operation.
+  * Active `poised_enhancer_candidates` now contains only `MESENCHYMAL` and `NEURALCREST` rows.
+  * Active `active_enhancer_candidates` now contains only `MESENCHYMAL` and `NEURALCREST` rows.
+  * Active `noccl_cCREs` is limited to `dELS`, `pELS`, and `PLS`; this was already true before the latest trim.
+* Indexes were added for faster IGV overlap queries:
+  * `idx_poised_enhancer_candidates_cell_chrom_start_end`
+  * `idx_active_enhancer_candidates_cell_chrom_start_end`
+  * `idx_noccl_cCREs_type_chrom_start_end`
+  * `idx_noccl_cCREs_chrom_start_end`
+* Exon tracks are collapsed at query/display time, not by rewriting the `exons` table. This preserves transcript-level exon rows in the database but renders one feature per `gene_id`, chromosome, start, end, and strand. Tooltips list transcript count, transcript IDs, exon numbers, strand, and source. This affects shared Population exon tracks in `utils/database.py` and Family SV local exon tracks in `pages/family_genomes.py`.
+* Example exon behavior verified during the session: `KCNQ5` exon 4 at `chr6:73077321-73077497` appears once as `KCNQ5 exon (5 transcripts)` instead of five stacked transcript features.
+* Example locus check verified during the session: `KHDC3L` lies near the early/start side of `C_255108` (`chr6:73356293-73500501`), starting about 6.4 kb after the SV start.
+* `exploration/build_master_list.py` appends a `Family_IGV_Link` column to `MasterList.csv` (in addition to the existing Population `IGV_Link`). Each link is a full URL in the form `http://ofc-svexplorer.cardinal.engr.uconn.edu/family?family=<Family_ID>&chrom=chrN&start=<int>&end=<int>` and pairs with the Family SV URL prefill above.
+
 ## Data And Secrets
 
 * The SQLite database path is hard-coded as:
@@ -96,6 +130,38 @@ The next intended architecture is **local discovery first**: simulate multiple e
 * Do not move sensitive database access into worker scripts unless explicitly requested.
 
 * For distributed/discovered tools, prefer passing analysis-ready CSV/parquet inputs or dataset IDs rather than giving workers unrestricted database access.
+
+## Case Studies And rclone
+
+* The Case Study page (`pages/case_study.py`) renders curated content from JSON files in a local cache managed by `utils/case_studies.py`.
+* Local cache defaults to `rclone/cache/case_studies/` (gitignored). A Refresh button next to the dropdown runs `rclone sync` from a configured OneDrive folder into that cache, mirroring `*.json`, `*.xlsx`, and `*.csv`. Because it is a sync, local files of those types that no longer exist on OneDrive are deleted; other files (e.g. `.docx`) in the cache are left untouched.
+* Configuration is env-driven via `os.environ` or a gitignored `rclone/.env` file:
+  * `CASE_STUDY_RCLONE_BIN` (default `rclone`)
+  * `CASE_STUDY_RCLONE_REMOTE` (e.g. `uconn:.../Data/Case_Study`); empty means refresh is disabled
+  * `CASE_STUDY_CACHE_DIR` (default `rclone/cache/case_studies`)
+  * `CASE_STUDY_REFRESH_TIMEOUT_SECONDS` (default `120`)
+* `rclone/.env.example` is committed as a template; `rclone/.env` and `rclone/cache/` are gitignored. Do not commit the real OneDrive remote path.
+* `utils.case_studies` redacts the remote path and cache dir from error messages so paths are not leaked in the UI or logs.
+* JSON schema: top-level `title` and `sections` are required; `genes` is optional. The case-study key is the JSON filename stem (a file `X.json` is keyed as `X`, so name files `<key>.json`). A top-level `id` field is NOT used — do not add one. Each section has a `heading` and optional `paragraphs`; a paragraph item is a plain string or `{text, links, suffix}` where `links` is a list of `{label, href}`. Sections may include a `table` with `columns` and `rows`. When `text`/`links`/`suffix` are concatenated, the author controls spacing (e.g. end `text` with a trailing space before a link).
+* A built-in fallback named `TET3-local` renders the original hard-coded TET3 content (with live DB supporting-data query) when no cached JSON is available.
+* Cached JSON files that fail to parse/validate are skipped from the dropdown; `utils.case_studies.invalid_study_files()` lists them and the page shows a warning (with the filename and parse reason) above the case-study content and after each Refresh.
+* `utils/case_studies.py` runs rclone via `subprocess.run` with an argument list and a timeout; no shell strings are used.
+* A curated gene summary can be placed in the cache as `SUMMARY.xlsx` (preferred) or `SUMMARY.csv`. `utils.case_studies.load_case_study_summary()` reads it (xlsx via the dependency-free `utils/xlsx_reader.py`) and returns `{file, columns, rows}` or `None`. When present, the Case Study page renders it as the first sub-tab (`Summary Table`); the second sub-tab (`Case Studies`) contains the case-study dropdown, Refresh button, warnings, and selected case-study content. The summary table is refreshed by the same Refresh button. `utils/xlsx_reader.py` auto-detects the header row, skipping leading rows with fewer than two non-empty cells (e.g. a merged title row), and supports an explicit 0-based `header_row` override.
+* `scripts/convert_case_study_docx.py` converts `Case_Study_*.docx` sources into case-study JSON. It classifies paragraphs by label (`Function`, `IGV`, `Literature`, `Pathway`, `Supporting Data`), synthesizes `{text, links, suffix}` IGV (`/population?gene=<GENE>`) and Pathway (`/pathway?genes=...`) links, puts citation-like paragraphs in a "References" section and other unlabeled text under "EMT"/"Notes", and appends a "Supporting Data" evidence table computed via read-only DB queries (exon/enhancer/promoter overlap at freq <= 0.01) plus a gene-expression finding from `pLI/tab_43_genes.csv`. Run with `PYTHONPATH=. python scripts/convert_case_study_docx.py --input-dir <dir-with-docx>`; it writes `<gene>.json` into the cache and, when the OneDrive remote is configured, uploads the JSONs + `SUMMARY.*` with rclone so Refresh keeps them. The resulting JSON for a gene named `TET3` overwrites the cache `TET3.json`.
+* Table Inspection marks genes with available case studies by appending `*` in the `Gene` column and shows a note above the table. Clicking a marked gene opens the existing navigation modal with an additional `Open Case Study` action, which routes to `/case-study?case=<gene>&tab=case-studies`.
+
+## Pathway Networks And rclone
+
+* The Pathway page (`pages/pathway.py`) loads its edges/nodes from a local cache managed by `utils/pathway_networks.py`, with a "Network version" dropdown (e.g. Baseline, Extended1, Extended2) and a Refresh button that runs `rclone sync`.
+* Each version is a subdirectory of the configured OneDrive pathway folder. Within a directory the first CSV whose filename starts with `edges` is used as the edge table and the first starting with `nodes` as the node table; any other CSVs (e.g. `go_gene_annotations.csv`) are ignored.
+* Local cache defaults to `rclone/cache/pathway_networks/` (gitignored). Sync is restricted to `*.csv` and mirrors the remote, so local CSVs not on OneDrive are deleted; non-CSV files are left untouched.
+* Configuration is env-driven via `os.environ` or the gitignored `rclone/.env` file:
+  * `PATHWAY_RCLONE_BIN` (defaults to `CASE_STUDY_RCLONE_BIN`, else `rclone`)
+  * `PATHWAY_RCLONE_REMOTE` (e.g. `uconn:.../Data/Pathway`); empty means refresh is disabled
+  * `PATHWAY_CACHE_DIR` (default `rclone/cache/pathway_networks`)
+  * `PATHWAY_REFRESH_TIMEOUT_SECONDS` (default `120`)
+* If the cache is empty or unconfigured, `list_versions()` falls back to the bundled `pathway/edges_e.csv`/`nodes_e.csv` (Baseline) and `pathway/edges_v1.csv`/`nodes_v1.csv` (Extended1) so the page still renders.
+* `utils.pathway_networks` redacts the remote path and cache dir from error messages. Network versions are loaded lazily and cached in `pages/pathway.py` (`_NETWORK_CACHE`, cleared on Refresh). GO annotations are still read from the local `pathway/go_gene_annotations.csv`.
 
 ## AI Query And MCP
 

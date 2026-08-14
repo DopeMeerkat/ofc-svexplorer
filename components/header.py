@@ -15,18 +15,14 @@ def create_uconn_header():
     # Header: blue background, left-aligned, with logo and professional tabs (no rounded edges, inverted color scheme)
     return html.Div([
         html.Div([
-            html.Img(
-                src='/assets/husky.jpg',
-                style={'height': '54px', 'marginRight': '18px', 'borderRadius': '50%', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-            ),
             html.Div([
-                html.H1('OFC SV Browser', style={
+                html.H1('OFC SV Explorer', style={
                     **uconn_styles['title'],
                     'margin': 0,
                     'padding': 0,
-                    'color': UCONN_NAVY.replace(UCONN_NAVY, '#FFFFFF')
+                    'color': '#FFFFFF'
                 }),
-                html.P('Browsing tool for Orofacial Cleft Structural Variations', style={
+                html.P('Structural variation and regulatory annotation portal for orofacial cleft research', style={
                     'margin': 0,
                     'fontSize': '14px',
                     'color': '#FFFFFF'
@@ -36,33 +32,25 @@ def create_uconn_header():
         # Tabs navigation
         dcc.Tabs(
             id='main-tabs',
-            value='/',
+            value='/summary',
             children=[
-                dcc.Tab(label='Database', value='/database',
+                dcc.Tab(label='Summary', value='/summary',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
-                dcc.Tab(label='Table', value='/table',
+                dcc.Tab(label='Database Overview', value='/database',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
-                dcc.Tab(label='Interactions', value='/circos',
+                dcc.Tab(label='Table Inspection', value='/table',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
-                dcc.Tab(label='Genome Browser', value='/',
+                dcc.Tab(label='IGV/Population', value='/population',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
-                dcc.Tab(label='Family Genomes', value='/family',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Population SVs', value='/population',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='GO Term Analysis', value='/go-terms',
+                dcc.Tab(label='Family SV', value='/family',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
@@ -70,15 +58,7 @@ def create_uconn_header():
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),
-                dcc.Tab(label='AI Query', value='/ai-query',
-                    style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                    selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='Visualization Upload', value='/visualization-upload',
-                        style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
-                        selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
-                ),
-                dcc.Tab(label='MCP Query', value='/mcp-query',
+                dcc.Tab(label='Case Study', value='/case-study',
                         style={'color': '#FFFFFF', 'backgroundColor': UCONN_NAVY, 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0'},
                         selected_style={'color': UCONN_NAVY, 'backgroundColor': '#FFFFFF', 'fontWeight': 'bold', 'fontSize': '14px', 'padding': '7px 18px', 'marginRight': '2px', 'border': f'1px solid {UCONN_NAVY}', 'borderRadius': '0', 'boxShadow': '0 2px 8px rgba(0,0,0,0.08)'}
                 ),

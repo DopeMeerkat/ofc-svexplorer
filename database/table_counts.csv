@@ -1,0 +1,11 @@
+table,rows
+phenotype,710
+phenotype_svs,2949729
+background_svs,13290494
+structural_variation,16545543
+single_nucleotide_variation,0
+genes,27734
+exons,1007661
+sv_gene,1370029
+sv_freqs,273564
+reference,1274723

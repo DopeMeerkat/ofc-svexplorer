@@ -2,6 +2,8 @@
 Footer component for the UCONN OFC SV Browser application.
 """
 
+from datetime import date
+
 from dash import html
 from utils.styling import UCONN_NAVY
 
@@ -12,7 +14,7 @@ def create_uconn_footer():
     Returns:
         dash.html.Footer: Footer component
     """
-    current_year = 2025
+    current_year = date.today().year
     return html.Footer([
         html.Div([
             html.Img(
@@ -22,9 +24,6 @@ def create_uconn_footer():
             html.P([
                 '© ', str(current_year), ' University of Connecticut'
             ], style={'color': UCONN_NAVY}),
-            html.P([
-                html.A('Privacy Policy', href='#', style={'color': UCONN_NAVY, 'marginRight': '15px', 'textDecoration': 'none'}),
-                html.A('Terms of Use', href='#', style={'color': UCONN_NAVY, 'textDecoration': 'none'})
-            ])
+            html.P('OFC-SV Explorer research portal', style={'color': UCONN_NAVY, 'margin': '0'})
         ], style={'textAlign': 'center', 'width': '100%'})
     ], style={'backgroundColor': '#FFFFFF', 'color': UCONN_NAVY, 'padding': '15px 0px', 'textAlign': 'center', 'fontSize': '12px', 'marginTop': '20px', 'width': '100%'})

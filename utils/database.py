@@ -11,6 +11,17 @@ import pandas as pd
 # Database path
 DB_PATH = '/data/cellvar.db/cellvar.db'
 
+# Tables that may be used as an SV source for track building. Table names are
+# interpolated into SQL only after passing through this whitelist.
+SV_TABLE_WHITELIST = ('phenotype_svs', 'filtered_svs', 'background_svs')
+
+
+def normalize_sv_table(sv_table):
+    """Return a whitelisted SV source table name, or phenotype_svs if unknown."""
+    if sv_table in SV_TABLE_WHITELIST:
+        return sv_table
+    return 'phenotype_svs'
+
 
 READONLY_BLOCKED_KEYWORDS = {
     "alter", "analyze", "attach", "begin", "commit", "create", "delete",
@@ -133,7 +144,7 @@ def get_tracks_for_genome(chrom, db_path=DB_PATH):
     """
     Get gene tracks for a specific chromosome.
     """
-    from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE
+    from utils.styling import UCONN_NAVY
     
     tracks = []
     if not os.path.exists(db_path):
@@ -181,6 +192,15 @@ def get_tracks_for_genome(chrom, db_path=DB_PATH):
         print(f"Database error when fetching genes: {e}")
         return []
 
+def _format_grouped_exon_values(values, max_items=20):
+    items = [item for item in str(values or "").split(",") if item]
+    if not items:
+        return "N/A"
+    shown = items[:max_items]
+    suffix = "" if len(items) <= max_items else f"<br>...and {len(items) - max_items} more"
+    return "<br>".join(shown) + suffix
+
+
 def get_exon_track_for_genome(chrom, db_path=DB_PATH, start=None, end=None):
     """
     Get exon annotation track for a specific chromosome or locus window.
@@ -218,9 +238,19 @@ def get_exon_track_for_genome(chrom, db_path=DB_PATH, start=None, end=None):
             params.extend([int(end), int(start)])
 
         cursor.execute(f"""
-            SELECT exon_id, gene_id, transcript_id, chrom, exon_start, exon_end, exon_number, strand, source
+            SELECT
+                gene_id,
+                chrom,
+                exon_start,
+                exon_end,
+                strand,
+                COUNT(*) AS transcript_count,
+                GROUP_CONCAT(DISTINCT transcript_id) AS transcript_ids,
+                GROUP_CONCAT(DISTINCT exon_number) AS exon_numbers,
+                GROUP_CONCAT(DISTINCT source) AS sources
             FROM {exon_table}
             WHERE {' AND '.join(where_clauses)}
+            GROUP BY gene_id, chrom, exon_start, exon_end, strand
             ORDER BY exon_start
         """, params)
 
@@ -229,20 +259,21 @@ def get_exon_track_for_genome(chrom, db_path=DB_PATH, start=None, end=None):
 
         features = []
         for exon in exons:
-            exon_number = exon["exon_number"]
-            exon_label = f"exon {exon_number}" if exon_number is not None else "exon"
-            transcript = exon["transcript_id"] or "Unknown transcript"
+            exon_numbers = _format_grouped_exon_values(exon["exon_numbers"])
+            transcript_count = int(exon["transcript_count"] or 0)
+            transcript_label = "transcript" if transcript_count == 1 else "transcripts"
             features.append({
                 "chr": chrom,
                 "start": exon["exon_start"],
                 "end": exon["exon_end"],
-                "name": f"{exon['gene_id']} {exon_label}",
+                "name": f"{exon['gene_id']} exon ({transcript_count} {transcript_label})",
                 "description": (
                     f"Gene: {exon['gene_id']}<br>"
-                    f"Transcript: {transcript}<br>"
-                    f"Exon: {exon_number if exon_number is not None else 'N/A'}<br>"
+                    f"Transcripts: {transcript_count}<br>"
+                    f"Transcript IDs:<br>{_format_grouped_exon_values(exon['transcript_ids'])}<br>"
+                    f"Exon number(s):<br>{exon_numbers}<br>"
                     f"Strand: {exon['strand'] or 'N/A'}<br>"
-                    f"Source: {exon['source'] or 'N/A'}"
+                    f"Source: {_format_grouped_exon_values(exon['sources'])}"
                 ),
                 "strand": exon["strand"],
             })
@@ -375,6 +406,13 @@ def get_gene_by_id(gene_id, db_path=DB_PATH):
         cursor = conn.cursor()
         cursor.execute("SELECT id, chrom, x1, x2, length, strand FROM genes WHERE id = ?", (gene_id,))
         result = cursor.fetchone()
+        if not result:
+            # Case-insensitive fallback so URLs like ?gene=tet3 still resolve.
+            cursor.execute(
+                "SELECT id, chrom, x1, x2, length, strand FROM genes WHERE UPPER(id) = UPPER(?)",
+                (gene_id,),
+            )
+            result = cursor.fetchone()
         conn.close()
         
         if not result:
@@ -1255,23 +1293,26 @@ def get_family_members(family_id, db_path=DB_PATH):
         print(f"Database error in get_family_members: {e}")
         return {'parents': [], 'children': []}
 
-def get_sample_svs(bam_id, db_path=DB_PATH):
+def get_sample_svs(bam_id, sv_table='phenotype_svs', db_path=DB_PATH):
     """
     Get structural variations for a specific sample
-    
+
     Args:
         bam_id (str): The BAM ID (sample) to get SVs for
+        sv_table (str): SV source table; one of phenotype_svs, filtered_svs,
+            background_svs (whitelisted)
         db_path (str): Path to the SQLite database
-        
+
     Returns:
         list: List of dictionaries containing SV information
     """
+    sv_table = normalize_sv_table(sv_table)
     try:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row  # This enables column access by name
         cursor = conn.cursor()
         
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 ps.sample,
                 ps.id,
@@ -1286,7 +1327,7 @@ def get_sample_svs(bam_id, db_path=DB_PATH):
                 ps.pheno,
                 ps.gender,
                 GROUP_CONCAT(DISTINCT g.id) AS gene_ids
-            FROM phenotype_svs ps
+            FROM {sv_table} ps
             LEFT JOIN genes g
                 ON g.chrom = ps.chrom
                AND ps.start <= g.x2
@@ -1309,14 +1350,18 @@ def get_sample_svs(bam_id, db_path=DB_PATH):
         print(f"Database error in get_sample_svs: {e}")
         return []
 
-def create_family_tracks(family_members, db_path=DB_PATH):
+def create_family_tracks(family_members, sv_table='phenotype_svs', track_label=None, db_path=DB_PATH):
     """
     Create IGV tracks for each family member's structural variations
-    
+
     Args:
         family_members (dict): Dictionary with family member information
+        sv_table (str): SV source table; one of phenotype_svs, filtered_svs,
+            background_svs (whitelisted)
+        track_label (str, optional): Short label appended to each track name to
+            distinguish multiple SV sources (e.g. "Filtered", "All")
         db_path (str): Path to the SQLite database
-        
+
     Returns:
         list: List of track objects for the IGV browser
     """
@@ -1330,7 +1375,7 @@ def create_family_tracks(family_members, db_path=DB_PATH):
         gender = 'Male' if parent['gender'] == 'M' else 'Female'
         
         # Get SVs for this parent
-        svs = get_sample_svs(bam_id)
+        svs = get_sample_svs(bam_id, sv_table=sv_table)
         
         # Create track features
         features = []
@@ -1352,8 +1397,11 @@ def create_family_tracks(family_members, db_path=DB_PATH):
         
         # Create the parent track
         parent_color = "#3366CC" if parent['gender'] == 'M' else "#CC3366"
+        track_name = f"Parent {i+1} ({gender})"
+        if track_label:
+            track_name = f"{track_name} - {track_label}"
         parent_track = {
-            'name': f"Parent {i+1} ({gender})",
+            'name': track_name,
             'sourceType': 'annotation',
             'format': 'bed',
             'features': features,
@@ -1372,7 +1420,7 @@ def create_family_tracks(family_members, db_path=DB_PATH):
         affected_status = " - Affected" if child['affected'] == 1 else ""
         
         # Get SVs for this child
-        svs = get_sample_svs(bam_id)
+        svs = get_sample_svs(bam_id, sv_table=sv_table)
         
         # Create track features
         features = []
@@ -1393,9 +1441,12 @@ def create_family_tracks(family_members, db_path=DB_PATH):
             features.append(feature)
         
         # Create the child track
-        child_color = UCONN_NAVY if child['gender'] == 'M' else UCONN_LIGHT_BLUE
+        child_color = UCONN_NAVY
+        track_name = f"Child {i+1} ({gender}{proband_status}{affected_status})"
+        if track_label:
+            track_name = f"{track_name} - {track_label}"
         child_track = {
-            'name': f"Child {i+1} ({gender}{proband_status}{affected_status})",
+            'name': track_name,
             'sourceType': 'annotation',
             'format': 'bed',
             'features': features,
