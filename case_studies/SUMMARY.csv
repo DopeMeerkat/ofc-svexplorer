@@ -1,0 +1,10 @@
+Case Study Summary,,,,,,
+Gene,Primary Function,Functional Class,Developmental Importance,Craniofacial/Palate Relevance,Primary Pathways,EMT Relevance
+TET3,DNA demethylation; epigenetic control of developmental gene expression,Epigenetic regulator,Very high; lineage specification and embryonic development ,Indirect but biologically compelling through developmental and neural-crest programs,"DNA methylation / demethylation, lineage specification, developmental gene regulation",Moderate to strong (via epigenetic reprogramming)
+PRKCA,"Signal transduction kinase controlling migration, adhesion, proliferation",Signaling protein kinase,High; participates in many developmental signaling pathways ,Plausible role in epithelial remodeling and morphogenesis,"PKC signaling, MAPK/ERK signaling, TGFB crosstalk, adhesion signaling",Strong
+LMO7,"Cell adhesion, actin cytoskeleton, junctional organization",Cytoskeletal/scaffold protein,Moderate,Plausible role in epithelial integrity during palatal fusion,"Adherens junctions, actin cytoskeleton, mechanotransduction",Moderate to strong 
+KDM8 (JMJD5),Histone/chromatin regulation; cell-cycle control,Epigenetic regulator,Moderate,Indirect; no strong palate-specific evidence,"Chromatin remodeling, cell cycle, circadian regulation, microtubule regulation
+
+",Moderate  
+TAF1,Core transcription initiation (TFIID complex),General transcription machinery,Very high; developmental-disorder gene,Developmentally important but not craniofacial-specific,"TFIID complex, RNA Polymerase II transcription initiation",Weak/direct evidence limited 
+MLLT6 (AF17),Chromatin-associated transcriptional regulation,Transcriptional co-regulator,Moderate,Little direct evidence for craniofacial development,"DOT1L/H3K79 methylation pathway, chromatin regulation",Weak

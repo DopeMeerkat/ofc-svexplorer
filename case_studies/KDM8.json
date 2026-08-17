@@ -1,0 +1,93 @@
+{
+  "title": "KDM8 - Promoter/TSS disruption",
+  "genes": [
+    "KDM8",
+    "SNAI1",
+    "CDH1",
+    "PITX2"
+  ],
+  "sections": [
+    {
+      "heading": "Function",
+      "paragraphs": [
+        "KDM8 is an epigenetic/chromatin regulator influencing chromatin state, cell proliferation, DNA damage responses, and microtubule/cytoskeletal organization. It is not an established craniofacial developmental gene. Its promoter/TSS region is found to overlap with DEL SV (chr17:66561968-66562967, size:350 bp, freq:0.006).  The portal’s Dashboard contrast distribution of two cases.  It is a 1 kb DEL SV (chr17:66561968-66562967) overlapping with intron No. 3 of the gene.  [Ketchum et al., 2024]."
+      ]
+    },
+    {
+      "heading": "IGV",
+      "paragraphs": [
+        {
+          "text": "Our cohort analysis discovers the case(s) in rare frequency that KDM8 is disturbed as shown here. ",
+          "links": [
+            {
+              "label": "Open KDM8 in IGV",
+              "href": "/population?gene=KDM8"
+            }
+          ],
+          "suffix": "."
+        }
+      ]
+    },
+    {
+      "heading": "Literature",
+      "paragraphs": [
+        "When KDM8 is compromised, downstream signaling required for neural crest cell differentiation and pharyngeal cartilage formation is impaired, which can lead to craniofacial malformations like cleft lip and palate [Chen et al., 2023, Wang et al., 2024]."
+      ]
+    },
+    {
+      "heading": "Pathway",
+      "paragraphs": [
+        {
+          "text": "Being an epigenetic regulator belonging to the JmjC-domain protein family which regulates α-tubulin acetylation and microtubule stability, it can facilitate cytoskeletal remodeling associated with epithelial-to-mesenchymal transition. The pathway view illustrates how this DEL SV is mapped in EMT (i.e., Microtubules → cell polarity/cell migration → EMT-like behaviors). ",
+          "links": [
+            {
+              "label": "Click here (KDM8, SNAI1, CDH1, PITX2)",
+              "href": "/pathway?genes=KDM8,SNAI1,CDH1,PITX2"
+            }
+          ],
+          "suffix": " to see the co-occurring SVs that are appearing with KDM8 in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TET-SNAIL4-BMP axis."
+        }
+      ]
+    },
+    {
+      "heading": "Supporting Data",
+      "paragraphs": [
+        "The evidence supporting the causality of the co-occurring SVs for ns-OFC has been curated. The summary is given below."
+      ],
+      "table": {
+        "columns": [
+          {
+            "name": "Evidence",
+            "id": "Evidence"
+          },
+          {
+            "name": "Finding",
+            "id": "Finding"
+          }
+        ],
+        "rows": [
+          {
+            "Evidence": "Overlapping with exons",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with enhancer candidates",
+            "Finding": "Yes"
+          },
+          {
+            "Evidence": "Overlapping with active candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with promoter candidates",
+            "Finding": "Yes"
+          },
+          {
+            "Evidence": "Gene expression data (NCC E13.5)",
+            "Finding": "Detected (NCC E13.5 = 4.43)"
+          }
+        ]
+      }
+    }
+  ]
+}

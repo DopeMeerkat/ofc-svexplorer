@@ -1,20 +1,18 @@
 """
-Curated case study content loader backed by a local JSON cache.
+Curated case study content loader backed by a committed local folder.
 
-The cache is refreshed from a configured OneDrive folder using rclone
-(`rclone sync`). The remote path, rclone binary, and cache directory are
-all environment-driven so confidential paths never live in committed code.
+Case-study JSON files and the optional ``SUMMARY.xlsx`` / ``SUMMARY.csv`` table
+live in the repository's ``case_studies/`` folder (committed to Git) and are
+read directly at runtime. Content is local-only; there is no OneDrive/rclone
+refresh step.
 
-Besides per-case JSON files, the cache may contain a ``SUMMARY.xlsx`` or
+Besides per-case JSON files, the folder may contain a ``SUMMARY.xlsx`` or
 ``SUMMARY.csv`` file (xlsx preferred) describing the curated case-study genes;
 ``load_case_study_summary()`` reads it into a table the Case Study page renders.
 
 Configuration (os.environ or a gitignored rclone/.env file):
 
-    CASE_STUDY_RCLONE_BIN       rclone executable (default: "rclone")
-    CASE_STUDY_RCLONE_REMOTE    OneDrive remote folder, e.g. "uconn:.../Data/Case_Study"
-    CASE_STUDY_CACHE_DIR        local JSON cache (default: rclone/cache/case_studies)
-    CASE_STUDY_REFRESH_TIMEOUT_SECONDS   rclone timeout (default: 120)
+    CASE_STUDY_CACHE_DIR   local case-study folder (default: case_studies)
 """
 
 from __future__ import annotations
@@ -23,7 +21,6 @@ import csv
 import json
 import os
 import pathlib
-import subprocess
 from typing import Any
 
 from .xlsx_reader import read_xlsx
@@ -31,10 +28,8 @@ from .xlsx_reader import read_xlsx
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 SUMMARY_FILE_NAMES = ("SUMMARY.xlsx", "SUMMARY.csv")
-DEFAULT_CACHE_DIR = PROJECT_ROOT / "rclone" / "cache" / "case_studies"
+DEFAULT_CACHE_DIR = PROJECT_ROOT / "case_studies"
 ENV_FILE = PROJECT_ROOT / "rclone" / ".env"
-DEFAULT_RCLONE_BIN = "rclone"
-DEFAULT_TIMEOUT = 120
 
 _REQUIRED_TOP_LEVEL = ("title", "sections")
 
@@ -59,70 +54,6 @@ def _getenv(key: str, default: str = "") -> str:
 
 def cache_dir() -> pathlib.Path:
     return pathlib.Path(_getenv("CASE_STUDY_CACHE_DIR", str(DEFAULT_CACHE_DIR)))
-
-
-def rclone_bin() -> str:
-    return _getenv("CASE_STUDY_RCLONE_BIN", DEFAULT_RCLONE_BIN)
-
-
-def rclone_remote() -> str:
-    return _getenv("CASE_STUDY_RCLONE_REMOTE", "")
-
-
-def is_configured() -> bool:
-    """True when a OneDrive remote has been configured for refresh."""
-    return bool(rclone_remote())
-
-
-def _redact(text: str) -> str:
-    """Replace configured paths with placeholders so errors do not leak them."""
-    for secret in (rclone_remote(), str(cache_dir())):
-        if secret:
-            text = text.replace(secret, "<configured-path>")
-    return text
-
-
-def refresh_case_studies(timeout: int | None = None) -> dict[str, Any]:
-    """Sync the configured OneDrive case-studies folder into the local cache.
-
-    Uses ``rclone sync`` so the cache mirrors the remote for JSON files:
-    local ``*.json`` files that no longer exist on OneDrive are deleted.
-    ``*.xlsx`` and ``*.csv`` files (e.g. ``SUMMARY.xlsx``) are mirrored the
-    same way. Non-JSON/CSV/XLSX files in the cache are left untouched.
-    """
-    remote = rclone_remote()
-    cache = cache_dir()
-    if not remote:
-        return {
-            "ok": False,
-            "configured": False,
-            "error": "CASE_STUDY_RCLONE_REMOTE is not configured.",
-        }
-
-    cache.mkdir(parents=True, exist_ok=True)
-    if timeout is None:
-        timeout = int(_getenv("CASE_STUDY_REFRESH_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT)))
-
-    cmd = [
-        rclone_bin(), "sync", remote, str(cache),
-        "--include", "*.json",
-        "--include", "*.xlsx",
-        "--include", "*.csv",
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    except FileNotFoundError:
-        return {"ok": False, "configured": True, "error": f"rclone not found: {rclone_bin()}"}
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "configured": True, "error": f"rclone copy timed out after {timeout}s"}
-    except Exception as exc:
-        return {"ok": False, "configured": True, "error": _redact(f"rclone copy failed: {exc}")}
-
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or f"rclone exited with code {proc.returncode}").strip()
-        return {"ok": False, "configured": True, "error": _redact(detail)}
-
-    return {"ok": True, "configured": True, "count": len(list_case_studies())}
 
 
 def _iter_study_files():

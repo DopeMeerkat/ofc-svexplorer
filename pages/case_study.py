@@ -1,9 +1,8 @@
 """Case Study page for curated gene-level examples.
 
-Content is loaded from a local JSON cache managed by ``utils.case_studies``.
-A hard-coded TET3 fallback is provided as "TET3-local" for when no cache or
-OneDrive sync is available. A Refresh button syncs the cache from the
-configured OneDrive folder via rclone.
+Content is loaded from the committed local ``case_studies/`` folder managed by
+``utils.case_studies``. A hard-coded TET3 fallback is provided as "TET3-local"
+for when no case-study files are available.
 """
 
 import sqlite3
@@ -230,22 +229,6 @@ def page_layout(search=None):
                                 optionHeight=48,
                                 style={"width": "380px", "display": "inline-block", "verticalAlign": "middle", "lineHeight": "24px"},
                             ),
-                            html.Button(
-                                "Refresh",
-                                id="case-study-refresh",
-                                n_clicks=0,
-                                style={
-                                    "display": "inline-block",
-                                    "verticalAlign": "middle",
-                                    "marginLeft": "12px",
-                                    "padding": "6px 14px",
-                                    "borderRadius": "4px",
-                                },
-                            ),
-                            html.Span(
-                                id="case-study-refresh-status",
-                                style={"marginLeft": "12px", "verticalAlign": "middle", "fontSize": "14px", "fontWeight": "600"},
-                            ),
                         ], style={
                             "display": "flex",
                             "alignItems": "center",
@@ -406,27 +389,3 @@ def _render_selected_case(case_id):
             style={"color": "#A61B1B", "fontWeight": "600"},
         )
     return _render_from_json(data)
-
-
-@callback(
-    Output("case-study-selector", "options"),
-    Output("case-study-refresh-status", "children"),
-    Output("case-study-refresh-status", "style"),
-    Output("case-study-cache-warning", "children"),
-    Output("case-study-summary", "children"),
-    Input("case-study-refresh", "n_clicks"),
-    prevent_initial_call=True,
-)
-def _refresh_case_studies(n_clicks):
-    result = case_studies.refresh_case_studies()
-    options = _case_study_options()
-    warning = _cache_warning()
-    summary = _case_study_summary_table()
-    if result.get("ok"):
-        count = result.get("count", 0)
-        message = f"Refreshed {count} case study(s) from OneDrive."
-        return options, message, {"color": "#166534", "fontWeight": "600"}, warning, summary
-    if not result.get("configured"):
-        message = "Refresh is not configured on this server."
-        return options, message, {"color": "#991B1B", "fontWeight": "600"}, warning, summary
-    return options, result.get("error", "Refresh failed."), {"color": "#991B1B", "fontWeight": "600"}, warning, summary

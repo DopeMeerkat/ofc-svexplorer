@@ -27,16 +27,19 @@ Usage:
 
     PYTHONPATH=. python scripts/convert_case_study_docx.py \
         --input-dir /path/to/docx \
-        [--output-dir rclone/cache/case_studies] \
+        [--output-dir case_studies] \
         [--db-path /data/cellvar.db/cellvar.db] \
         [--gene-table pLI/tab_43_genes.csv] \
         [--remote "uconn:.../Data/Case_Study"]
 
+The generated JSON files are written into the committed ``case_studies/``
+folder (the default output dir), which the Case Study page reads directly.
 When ``--remote`` is given, the generated JSON files (and any SUMMARY.xlsx /
-SUMMARY.csv in the output dir) are uploaded with rclone so the OneDrive refresh
-keeps them. The rclone binary comes from ``CASE_STUDY_RCLONE_BIN`` or defaults
-to ``rclone``. The remote path is read from ``--remote`` or from the gitignored
-``rclone/.env`` ``CASE_STUDY_RCLONE_REMOTE`` and is never printed.
+SUMMARY.csv in the output dir) are additionally uploaded with rclone as a
+manual OneDrive backup; they are not pulled back automatically. The rclone
+binary comes from ``CASE_STUDY_RCLONE_BIN`` or defaults to ``rclone``. The
+remote path is read from ``--remote`` or from the gitignored ``rclone/.env``
+``CASE_STUDY_RCLONE_REMOTE`` and is never printed.
 """
 
 from __future__ import annotations
@@ -52,8 +55,8 @@ import zipfile
 from typing import Any
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_INPUT_DIR = PROJECT_ROOT / "rclone" / "cache" / "case_studies"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "rclone" / "cache" / "case_studies"
+DEFAULT_INPUT_DIR = PROJECT_ROOT / "case_studies"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "case_studies"
 DEFAULT_DB_PATH = pathlib.Path("/data/cellvar.db/cellvar.db")
 DEFAULT_GENE_TABLE = PROJECT_ROOT / "pLI" / "tab_43_genes.csv"
 ENV_FILE = PROJECT_ROOT / "rclone" / ".env"
