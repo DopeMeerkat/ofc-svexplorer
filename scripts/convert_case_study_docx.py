@@ -29,13 +29,12 @@ Usage:
         --input-dir /path/to/docx \
         [--output-dir case_studies] \
         [--db-path /data/cellvar.db/cellvar.db] \
-        [--gene-table pLI/tab_43_genes.csv] \
+        [--gene-table assets/table1_41.csv] \
         [--remote "uconn:.../Data/Case_Study"]
 
 The generated JSON files are written into the committed ``case_studies/``
 folder (the default output dir), which the Case Study page reads directly.
-When ``--remote`` is given, the generated JSON files (and any SUMMARY.xlsx /
-SUMMARY.csv in the output dir) are additionally uploaded with rclone as a
+When ``--remote`` is given, the generated JSON files (and `SUMMARY.csv` in the output dir) are additionally uploaded with rclone as a
 manual OneDrive backup; they are not pulled back automatically. The rclone
 binary comes from ``CASE_STUDY_RCLONE_BIN`` or defaults to ``rclone``. The
 remote path is read from ``--remote`` or from the gitignored ``rclone/.env``
@@ -58,7 +57,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_INPUT_DIR = PROJECT_ROOT / "case_studies"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "case_studies"
 DEFAULT_DB_PATH = pathlib.Path("/data/cellvar.db/cellvar.db")
-DEFAULT_GENE_TABLE = PROJECT_ROOT / "pLI" / "tab_43_genes.csv"
+DEFAULT_GENE_TABLE = PROJECT_ROOT / "assets" / "table1_41.csv"
 ENV_FILE = PROJECT_ROOT / "rclone" / ".env"
 
 DOCX_PATTERN = "Case_Study_*.docx"
@@ -90,12 +89,6 @@ JOIN exons e ON e.chrom = ps.chrom
     AND ps."end" >= e.exon_start
 UNION ALL
 SELECT 'Overlapping with enhancer candidates', COUNT(*), COUNT(DISTINCT ps.id)
-FROM target_svs ps
-JOIN poised_enhancer_candidates c ON c.chrom = ps.chrom
-    AND ps.start <= c.end
-    AND ps."end" >= c.start
-UNION ALL
-SELECT 'Overlapping with active candidates', COUNT(*), COUNT(DISTINCT ps.id)
 FROM target_svs ps
 JOIN active_enhancer_candidates c ON c.chrom = ps.chrom
     AND ps.start <= c.end
@@ -195,10 +188,14 @@ def _expression_finding(gene: str, gene_table: pathlib.Path) -> str:
         return "Not available"
     try:
         with gene_table.open("r", encoding="utf-8", newline="") as handle:
-            for row in csv.DictReader(handle):
+            reader = csv.DictReader(handle)
+            expression_column = next((column for column in (reader.fieldnames or []) if column.startswith("NCC_13.5")), None)
+            if not expression_column:
+                return "Not available"
+            for row in reader:
                 if (row.get("Gene") or "").strip().upper() == gene.upper():
                     try:
-                        value = float(row.get("NCC_13.5"))
+                        value = float(row.get(expression_column))
                     except (TypeError, ValueError):
                         return "Not available"
                     if value >= 7:
@@ -329,7 +326,7 @@ def main() -> None:
 
     if args.remote and written:
         upload_files = list(written)
-        for name in ("SUMMARY.xlsx", "SUMMARY.csv"):
+        for name in ("SUMMARY.csv",):
             candidate = output_dir / name
             if candidate.is_file():
                 upload_files.append(candidate)

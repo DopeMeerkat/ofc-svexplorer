@@ -24,7 +24,7 @@ from pages.population_svs import create_background_track
 
 
 OFC_RELEVANT_ENHANCER_CELLS = ('MESENCHYMAL', 'NEURALCREST')
-ENHANCER_CANDIDATE_TABLES = {'poised_enhancer_candidates', 'active_enhancer_candidates'}
+ENHANCER_CANDIDATE_TABLES = {'active_enhancer_candidates'}
 
 def _parse_search(search):
     """Parse family + chromosome/start/end coordinates from a URL query string."""

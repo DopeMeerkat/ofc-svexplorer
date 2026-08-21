@@ -92,9 +92,9 @@ def _build_overlap_venn_figure():
         y=[point[1] for point in lens_points],
         mode="lines",
         fill="toself",
-        name="43 overlap genes",
-        customdata=["tab_43_genes"] * len(lens_points),
-        hovertemplate="43 overlap genes<br>Click to inspect the table<extra></extra>",
+        name="41 overlap genes",
+        customdata=["overlap_table"] * len(lens_points),
+        hovertemplate="41 overlap genes<br>Click to inspect the table<extra></extra>",
         line={"color": UCONN_NAVY, "width": 2},
         fillcolor="rgba(0, 39, 76, 0.72)",
     ))
@@ -102,9 +102,9 @@ def _build_overlap_venn_figure():
         x=lens_marker_x,
         y=lens_marker_y,
         mode="markers",
-        name="43 overlap genes click target",
-        customdata=["tab_43_genes"] * len(lens_marker_x),
-        hovertemplate="43 overlap genes<br>Click to inspect the table<extra></extra>",
+        name="41 overlap genes click target",
+        customdata=["overlap_table"] * len(lens_marker_x),
+        hovertemplate="41 overlap genes<br>Click to inspect the table<extra></extra>",
         marker={"size": 18, "color": "rgba(0, 39, 76, 0.01)"},
         showlegend=False,
     ))
@@ -121,9 +121,9 @@ def _build_overlap_venn_figure():
         x=[0],
         y=[0],
         mode="text",
-        text=["<b>43<br>genes</b>"],
-        customdata=["tab_43_genes"],
-        hovertemplate="43 overlap genes<br>Click to inspect the table<extra></extra>",
+        text=["<b>41<br>genes</b>"],
+        customdata=["overlap_table"],
+        hovertemplate="41 overlap genes<br>Click to inspect the table<extra></extra>",
         textfont={"size": 20, "color": "white"},
         showlegend=False,
     ))
@@ -174,7 +174,7 @@ def page_layout():
                 'overflow': 'hidden',
             },
         ),
-        html.P('Select the overlap region to open the curated 43-gene table.', style={'fontSize': '14px', 'color': UCONN_NAVY, 'textAlign': 'center'}),
+        html.P('Select the overlap region to open the curated 41-gene table.', style={'fontSize': '14px', 'color': UCONN_NAVY, 'textAlign': 'center'}),
     ], style={**uconn_styles['content'], 'maxWidth': '900px', 'margin': '40px auto 0 auto'})
 
 
@@ -189,7 +189,7 @@ def route_from_overlap_venn(click_data):
         return no_update, no_update
 
     point = (click_data.get('points') or [{}])[0]
-    if point.get('customdata') == 'tab_43_genes':
-        return '/table', '?source=tab_43_genes'
+    if point.get('customdata') == 'overlap_table':
+        return '/table', ''
 
     return no_update, no_update

@@ -294,7 +294,7 @@ def create_uconn_footer():
     ], style={'backgroundColor': UCONN_WHITE, 'color': UCONN_NAVY, 'padding': '15px 0px', 'textAlign': 'center', 'fontSize': '12px', 'marginTop': '20px', 'width': '100%'})
 
 # Read the CSV table for the table page
-TABLE_CSV_PATH = 'assets/table.csv'
+TABLE_CSV_PATH = 'assets/table1_41.csv'
 def load_table_data():
     try:
         df = pd.read_csv(TABLE_CSV_PATH)

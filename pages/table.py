@@ -6,22 +6,15 @@ from dash import ALL, ctx, html, dash_table, Input, Output, State, callback, no_
 from utils.styling import UCONN_NAVY, UCONN_LIGHT_BLUE, page_title_style, uconn_styles
 
 from utils import case_studies
+from utils.curated_table import CURATED_TABLE_PATH, curated_table_footnote_lines
 from utils.database import load_table_data
-import os
 import re
-from urllib.parse import parse_qs, quote
+from urllib.parse import quote
 
-SPECIAL_TABLE_SOURCES = {
-    'tab_43_genes': {
-        'path': os.path.join('pLI', 'tab_43_genes.csv'),
-        'title': 'Table Inspection: 43 Overlap Genes',
-        'description': 'Inspect the 43 genes in the OFC literature and child SV overlap set.',
-    }
-}
+TABLE_CSV_PATH = CURATED_TABLE_PATH
 
 CLICKABLE_COLUMNS = {
     'gene': 'gene',
-    'interactionpartners': 'gene',
     'fusorsvid': 'sv',
     'fusorsvids': 'sv',
 }
@@ -47,12 +40,6 @@ def _ordered_columns(df):
             if _normalize_column_name(column) == target and column not in primary
         )
     return primary + [column for column in columns if column not in primary]
-
-
-def _table_source_from_search(search):
-    query = parse_qs((search or '').lstrip('?'))
-    source = query.get('source', [''])[0]
-    return SPECIAL_TABLE_SOURCES.get(source)
 
 
 def _split_cell_values(value):
@@ -186,10 +173,9 @@ def page_layout(search=None):
     Returns:
         dash.html.Div: Table page layout
     """
-    source_config = _table_source_from_search(search)
-    csv_path = source_config['path'] if source_config else 'assets/table2.csv'
-    title = source_config['title'] if source_config else 'Table Inspection'
-    description = source_config['description'] if source_config else 'Curated gene-level evidence with direct links to IGV, pathway context, and available case studies.'
+    csv_path = TABLE_CSV_PATH
+    title = 'Table Inspection'
+    description = 'Curated 41-gene overlap table with direct links to IGV, pathway context, and available case studies.'
 
     df = load_table_data(csv_path)
     if df.empty:
@@ -275,14 +261,6 @@ def page_layout(search=None):
                     'maxWidth': '150px',
                 },
                 {
-                    'if': {'column_id': 'Interaction_partner(s)'},
-                    'color': UCONN_NAVY,
-                    'backgroundColor': '#FBFDFF',
-                    'cursor': 'pointer',
-                    'minWidth': '190px',
-                    'maxWidth': '240px',
-                },
-                {
                     'if': {'column_id': 'FusorSV_id(s)'},
                     'color': '#005EA8',
                     'backgroundColor': '#FBFDFF',
@@ -303,6 +281,10 @@ def page_layout(search=None):
             ],
             selected_rows=[],
         ),
+        html.Div([
+            html.P(line, style={'margin': '2px 0'})
+            for line in curated_table_footnote_lines()
+        ], style={'fontSize': '12px', 'color': '#4B5563', 'lineHeight': '1.45', 'marginTop': '10px'}),
         dcc.Store(id='table-selected-item-store', data=None),
         
         # Custom modal-like container using divs

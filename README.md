@@ -23,7 +23,7 @@ Public views on the site use aggregate counts and genomic coordinates, so indivi
 
 ## Summary
 
-The Summary page introduces the project and shows a Venn-style overlap of OFC literature genes against genes that carry SVs in more than one child. Click the center overlap region to open the 43-gene table on the Table Inspection page.
+The Summary page introduces the project and shows a Venn-style overlap of OFC literature genes against genes that carry SVs in more than one child. Click the center overlap region to open the 41-gene table on the Table Inspection page.
 
 ![Summary page](images/summary.png)
 
@@ -44,7 +44,7 @@ For example, set X-axis to Chromosome, Y value to Unique SVs, and add SV Type as
 
 ## Table Inspection
 
-The Table Inspection page holds curated gene tables. You can sort by any column and filter rows with the built-in controls. Clicking a value in a Gene, Interaction partner(s), or FusorSV ID(s) column opens a small menu with options to open that item in the IGV browser or the Pathway page.
+The Table Inspection page holds the curated 41-gene overlap table. You can sort by any column and filter rows with the built-in controls. Clicking a value in a Gene or FusorSV ID(s) column opens a small menu with options to open that item in the IGV browser or the Pathway page.
 
 ![Table Inspection](images/table-inspection.png)
 
@@ -78,7 +78,7 @@ The Pathway page lets you compare a list of genes against a curated palatogenesi
 
 - Enter genes as a comma-separated list, for example `TP63, IRF6, GRHL3`, or upload a CSV containing gene symbols.
 - Click Analyze to highlight the matching network nodes.
-- Switch between the Baseline and Extended network versions, and pick a layout that is easy to read.
+- Show or hide the Baseline, Extended, and Case Study 6 network versions, and pick a layout that is easy to read.
 - Click a node to inspect its details, and check the hit summary for genes that were not found in the network.
 - The GO term enrichment table below ranks enriched terms; sorting by q-value brings the strongest signal to the top.
 
@@ -105,4 +105,3 @@ Citation details will be added once the companion publication is available.
 ```
 
 ## Acknowledgements
-

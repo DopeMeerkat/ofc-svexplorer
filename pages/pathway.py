@@ -46,24 +46,30 @@ def _versions() -> list[dict]:
 
 
 def _version_choices() -> list[dict]:
-    """Return exactly two radio choices: Baseline and Extended."""
-    ids = {v["id"] for v in _versions()}
-    baseline_id = next((i for i in ("Baseline",) if i in ids), None)
-    extended_id = next((i for i in ("Extended2", "Extended1") if i in ids), None)
-    if extended_id is None:
-        other_ids = sorted(i for i in ids if i != baseline_id)
-        extended_id = other_ids[0] if other_ids else None
+    """Return the publication-facing network choices in display order."""
+    versions = {v["id"]: v for v in _versions()}
+    ordered = [
+        ("Baseline", "Baseline"),
+        ("Extended2", "Extended"),
+        ("Extended1", "Extended"),
+        ("CaseStudy6", "Case Study 6"),
+    ]
     choices = []
-    if baseline_id:
-        choices.append({"id": baseline_id, "label": "Baseline"})
-    if extended_id:
-        choices.append({"id": extended_id, "label": "Extended"})
+    used_labels = set()
+    for version_id, label in ordered:
+        if version_id in versions and label not in used_labels:
+            choices.append({"id": version_id, "label": label})
+            used_labels.add(label)
     return choices
 
 
 def _default_version_id() -> str | None:
     choices = _version_choices()
     return choices[0]["id"] if choices else None
+
+
+def _default_visible_networks() -> list[str]:
+    return [choice["id"] for choice in _version_choices() if choice["label"] != "Case Study 6"]
 
 
 def _network(version_id: str | None = None) -> dict:
@@ -110,11 +116,17 @@ def _button_style(background_color=UCONN_NAVY):
     }
 
 
-def _network_panel(choice: dict) -> html.Div:
+def _network_panel(choice: dict, query_genes=None, layout_name=DEFAULT_LAYOUT, visible=True) -> html.Div:
     """Build one self-contained network panel for a version choice."""
     version_id = choice["id"]
     network = _network(version_id)
-    elements = network["elements"] if network else []
+    query_genes = set(query_genes or [])
+    elements = _build_highlighted_elements(query_genes, version_id) if query_genes else (network["elements"] if network else [])
+    layout = {
+        **LAYOUT_CONFIGS.get(layout_name, LAYOUT_CONFIGS[DEFAULT_LAYOUT]),
+        "fit": True,
+        "padding": 30,
+    }
     return html.Div(
         [
             html.H3(
@@ -127,7 +139,7 @@ def _network_panel(choice: dict) -> html.Div:
                         id={"type": "pathway-network", "index": version_id},
                         elements=elements,
                         stylesheet=BASE_STYLESHEET,
-                        layout=LAYOUT_CONFIGS[DEFAULT_LAYOUT],
+                        layout=layout,
                         style={"width": "100%", "height": "600px", "border": f"1px solid {UCONN_NAVY}"},
                     ),
                     html.Div(
@@ -156,8 +168,21 @@ def _network_panel(choice: dict) -> html.Div:
             ),
         ],
         id={"type": "pathway-panel", "index": version_id},
-        style={"flex": "1 1 460px", "minWidth": "420px"},
+        style={"flex": "1 1 460px", "minWidth": "420px", "display": "block" if visible else "none"},
     )
+
+
+def _network_panels(versions, query_genes=None, layout_name=DEFAULT_LAYOUT, selected_versions=None):
+    selected = set(selected_versions) if selected_versions is not None else set(_default_visible_networks())
+    return [
+        _network_panel(
+            choice,
+            query_genes=query_genes,
+            layout_name=layout_name,
+            visible=choice["id"] in selected,
+        )
+        for choice in versions
+    ]
 
 
 def _extract_genes_from_upload(contents: str) -> tuple[set[str], str | None]:
@@ -317,18 +342,20 @@ def page_layout(search=None):
                         clearable=False,
                         style={"width": "220px", "display": "inline-block", "verticalAlign": "middle"},
                     ),
+                    html.Button(
+                        "Reset view",
+                        id="pathway-reset-view-button",
+                        n_clicks=0,
+                        style={**_button_style(UCONN_LIGHT_BLUE), "marginLeft": "8px", "color": UCONN_NAVY},
+                    ),
                     html.Span(
                         "Network",
                         style={"fontWeight": "600", "color": UCONN_NAVY, "marginLeft": "16px", "marginRight": "8px"},
                     ),
-                    dcc.RadioItems(
+                    dcc.Checklist(
                         id="pathway-network-display",
-                        options=[
-                            {"label": "Both", "value": "both"},
-                            {"label": "Baseline", "value": "baseline"},
-                            {"label": "Extended", "value": "extended"},
-                        ],
-                        value="both",
+                        options=[{"label": choice["label"], "value": choice["id"]} for choice in versions],
+                        value=_default_visible_networks(),
                         inline=True,
                         labelStyle={"marginRight": "12px", "cursor": "pointer"},
                         inputStyle={"marginRight": "5px"},
@@ -337,7 +364,8 @@ def page_layout(search=None):
                 style={"display": "flex", "alignItems": "center", "marginBottom": "14px", "flexWrap": "wrap", "gap": "6px"},
             ),
             html.Div(
-                [_network_panel(choice) for choice in versions],
+                _network_panels(versions),
+                id="pathway-network-panels",
                 style={"display": "flex", "gap": "18px", "flexWrap": "wrap", "alignItems": "flex-start"},
             ),
             dcc.Store(id="pathway-upload-genes-store", data=[]),
@@ -349,16 +377,40 @@ def page_layout(search=None):
 
 @callback(Output({"type": "pathway-network", "index": ALL}, "layout"), Input("pathway-layout-dropdown", "value"))
 def update_pathway_layout(layout_name):
-    cfg = LAYOUT_CONFIGS.get(layout_name, LAYOUT_CONFIGS[DEFAULT_LAYOUT])
+    cfg = {
+        **LAYOUT_CONFIGS.get(layout_name, LAYOUT_CONFIGS[DEFAULT_LAYOUT]),
+        "fit": True,
+        "padding": 30,
+        "animate": True,
+    }
     return [cfg for _ in _version_choices()]
 
 
+@callback(
+    Output("pathway-network-panels", "children"),
+    Input("pathway-reset-view-button", "n_clicks"),
+    State("pathway-query-genes-store", "data"),
+    State("pathway-layout-dropdown", "value"),
+    State("pathway-network-display", "value"),
+    prevent_initial_call=True,
+)
+def reset_pathway_network_panels(n_clicks, current_query_genes, layout_name, selected_versions):
+    if not n_clicks:
+        return no_update
+    return _network_panels(
+        _version_choices(),
+        query_genes=set(current_query_genes or []),
+        layout_name=layout_name or DEFAULT_LAYOUT,
+        selected_versions=selected_versions,
+    )
+
+
 @callback(Output({"type": "pathway-panel", "index": ALL}, "style"), Input("pathway-network-display", "value"))
-def update_pathway_panel_display(display_value):
+def update_pathway_panel_display(selected_versions):
+    selected = set(selected_versions or [])
     styles = []
     for choice in _version_choices():
-        label = choice["label"].lower()
-        visible = display_value == "both" or display_value == label
+        visible = choice["id"] in selected
         styles.append({"flex": "1 1 460px", "minWidth": "420px", "display": "block" if visible else "none"})
     return styles
 

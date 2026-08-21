@@ -17,7 +17,7 @@ from utils.database import get_tracks_for_genome, get_exon_track_for_genome, DB_
 
 
 OFC_RELEVANT_ENHANCER_CELLS = ('MESENCHYMAL', 'NEURALCREST')
-ENHANCER_CANDIDATE_TABLES = {'poised_enhancer_candidates', 'active_enhancer_candidates'}
+ENHANCER_CANDIDATE_TABLES = {'active_enhancer_candidates'}
 NOCCl_WINDOW_BUFFER = 80000
 
 def _get_sv_by_id(sv_id):
@@ -347,16 +347,6 @@ def _format_frequency(freq, count, denominator):
         freq_value = float(freq or 0)
     except (TypeError, ValueError):
         freq_value = 0.0
-    try:
-        count_value = int(count or 0)
-    except (TypeError, ValueError):
-        count_value = 0
-    try:
-        denom_value = int(denominator or 0)
-    except (TypeError, ValueError):
-        denom_value = 0
-    if denom_value > 0:
-        return f"Frequency: {freq_value:.2%} ({count_value}/{denom_value} samples)"
     return f"Frequency: {freq_value:.2%}"
 
 def create_parent_track(chrom, gender, name, sv_table='filtered_svs'):
@@ -781,8 +771,6 @@ def create_background_track(chrom):
                     additional_info += f"Expected value: {info['expected_value']:.3f}<br>"
                 if 'frequency' in info:
                     additional_info += f"Frequency: {info['frequency']:.6f}<br>"
-                if 'sample_count' in info and info['sample_count'] > 0:
-                    additional_info += f"Sample count: {info['sample_count']}<br>"
 
                 # Add regulatory information (wrap long lists with line breaks)
                 if info['regulatory_types']:

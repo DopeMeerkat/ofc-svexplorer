@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from dash import Input, Output, callback, dash_table, dcc, html
 
 from pages.visualization_uploader import (
@@ -26,6 +27,37 @@ CARD_STYLE = {
     "boxShadow": "0 2px 8px rgba(0,0,0,0.04)",
 }
 CHART_HEIGHT = 380
+SMALL_CHART_HEIGHT = 260
+SV_TYPE_ORDER = ["DEL", "INS", "INV", "DUP"]
+RACE_GROUP_ORDER = ["African", "Asian"]
+ROLE_GROUP_ORDER = ["Child", "Parents", "Background population"]
+PHENOTYPE_GROUP_ORDER = ["Affected", "Normal", "CL", "CLP"]
+HG38_CHROMOSOME_LENGTHS = {
+    "chr1": 248956422,
+    "chr2": 242193529,
+    "chr3": 198295559,
+    "chr4": 190214555,
+    "chr5": 181538259,
+    "chr6": 170805979,
+    "chr7": 159345973,
+    "chr8": 145138636,
+    "chr9": 138394717,
+    "chr10": 133797422,
+    "chr11": 135086622,
+    "chr12": 133275309,
+    "chr13": 114364328,
+    "chr14": 107043718,
+    "chr15": 101991189,
+    "chr16": 90338345,
+    "chr17": 83257441,
+    "chr18": 80373285,
+    "chr19": 58617616,
+    "chr20": 64444167,
+    "chr21": 46709983,
+    "chr22": 50818468,
+    "chrX": 156040895,
+    "chrY": 57227415,
+}
 
 
 METRIC_TOOLTIPS = {
@@ -256,18 +288,54 @@ def _chromosome_figure(dataframe):
         return px.bar(title="SVs by Chromosome")
     working = dataframe.copy()
     working["chrom"] = working["chrom"].astype(str)
+    chrom_order = _chromosome_order(working["chrom"].unique())
+    working = working.set_index("chrom").reindex(chrom_order).reset_index()
+    working["chromosome_length_mb"] = working["chrom"].map(HG38_CHROMOSOME_LENGTHS).fillna(0) / 1_000_000
     total = int(working["structural_variants"].sum())
-    fig = _vertical_bar_figure(
-        working,
-        "chrom",
-        "ratio",
-        "SVs by Chromosome",
-        "Chromosome",
-        "% of Unique SVs",
-        category_order=_chromosome_order(working["chrom"].unique()),
+    fig = go.Figure()
+    fig.add_bar(
+        x=working["chrom"],
+        y=working["structural_variants"],
+        name="Unique SVs",
+        marker_color=UCONN_LIGHT_BLUE,
+        customdata=working[["ratio"]],
+        hovertemplate=(
+            "Chromosome: %{x}<br>"
+            "Unique SVs: %{y:,}<br>"
+            "% of unique SVs: %{customdata[0]:.1%}"
+            "<extra></extra>"
+        ),
     )
-    fig.update_yaxes(tickformat=".0%")
-    fig.update_traces(customdata=working[["structural_variants"]], hovertemplate="%{x}<br>%{y:.1%} of unique SVs<br>%{customdata[0]:,} / " + f"{total:,}" + " unique SVs<extra></extra>")
+    fig.add_scatter(
+        x=working["chrom"],
+        y=working["chromosome_length_mb"],
+        name="Chromosome length",
+        mode="lines+markers",
+        yaxis="y2",
+        line={"color": UCONN_NAVY, "width": 3},
+        marker={"size": 7},
+        hovertemplate="Chromosome: %{x}<br>Length: %{y:.1f} Mb<extra></extra>",
+    )
+    fig.update_layout(
+        title="SVs by Chromosome and Chromosome Length",
+        height=430,
+        margin=dict(l=70, r=80, t=70, b=70),
+        plot_bgcolor="#FFFFFF",
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+        xaxis={
+            "title": "Chromosome",
+            "categoryorder": "array",
+            "categoryarray": chrom_order,
+            "tickangle": -90,
+        },
+        yaxis={"title": f"Unique SVs (n={total:,})"},
+        yaxis2={
+            "title": "Chromosome Length (Mb)",
+            "overlaying": "y",
+            "side": "right",
+            "showgrid": False,
+        },
+    )
     return fig
 
 
@@ -306,6 +374,100 @@ def _cohort_figure(dataframe):
     return fig
 
 
+def _sv_type_order(values):
+    present = [str(value) for value in values if pd.notna(value)]
+    ordered = [value for value in SV_TYPE_ORDER if value in present]
+    ordered.extend(sorted(value for value in present if value not in ordered))
+    return ordered
+
+
+def _sv_type_group_figure(dataframe, group):
+    if dataframe.empty:
+        return px.bar(title=group)
+    group_df = dataframe[dataframe["group"] == group].copy()
+    if group_df.empty:
+        return px.bar(title=group)
+
+    order = _sv_type_order(dataframe["sv_type"].unique())
+    group_df = group_df.set_index("sv_type").reindex(order).reset_index()
+    group_df["group"] = group
+    for column in ["raw_count", "group_total", "normalized_percent", "unique_samples", "count_per_sample"]:
+        group_df[column] = pd.to_numeric(group_df[column], errors="coerce").fillna(0)
+    group_df["percent_label"] = group_df["normalized_percent"].map(lambda value: f"{value:.1f}%")
+
+    fig = px.bar(
+        group_df,
+        x="normalized_percent",
+        y="sv_type",
+        text="percent_label",
+        orientation="h",
+        title=group,
+        labels={"normalized_percent": "% of SV Rows", "sv_type": "SV Type"},
+        color_discrete_sequence=[UCONN_LIGHT_BLUE],
+        category_orders={"sv_type": order},
+    )
+    fig.update_xaxes(range=[0, 100], ticksuffix="%")
+    fig.update_layout(
+        showlegend=False,
+        height=SMALL_CHART_HEIGHT,
+        margin=dict(l=70, r=20, t=52, b=44),
+        plot_bgcolor="#FFFFFF",
+        yaxis={"categoryorder": "array", "categoryarray": order[::-1]},
+    )
+    fig.update_traces(textposition="auto", textfont=dict(size=12), cliponaxis=False)
+    fig.update_traces(
+        customdata=group_df[["group", "raw_count", "group_total", "unique_samples", "count_per_sample"]],
+        hovertemplate=(
+            "Group: %{customdata[0]}<br>"
+            "SV type: %{y}<br>"
+            "Raw count: %{customdata[1]:,.0f}<br>"
+            "Total SVs in group: %{customdata[2]:,.0f}<br>"
+            "Percent of group: %{x:.1f}%<br>"
+            "Unique samples: %{customdata[3]:,.0f}<br>"
+            "SV calls/sample: %{customdata[4]:,.1f}"
+            "<extra></extra>"
+        ),
+    )
+    return fig
+
+
+def _sv_type_group_section(dataframe):
+    if dataframe.empty:
+        return html.Div([
+            html.H3("SV Type Distributions by Group", style={"color": UCONN_NAVY}),
+            html.P("Cached data is not available. Run database/generate_database_overview.py.", style={"color": "#A61B1B"}),
+        ], style={**CARD_STYLE, "marginTop": "18px"})
+
+    race_df = dataframe[dataframe["comparison"] == "Race / ancestry comparison"]
+    role_df = dataframe[dataframe["comparison"] == "Role / phenotype comparison"]
+    race_groups = [group for group in RACE_GROUP_ORDER if group in set(race_df["group"])]
+    role_groups = [group for group in ROLE_GROUP_ORDER if group in set(role_df["group"])]
+    phenotype_groups = [group for group in PHENOTYPE_GROUP_ORDER if group in set(role_df["group"])]
+
+    return html.Div([
+        html.H3("SV Type Distributions by Group", style={"color": UCONN_NAVY, "marginBottom": "6px"}),
+        html.P(
+            "Each chart shows SV row-type composition within a group. Bar length is normalized percentage; hover text includes raw counts, total SV rows, unique samples, and SV calls per sample.",
+            style={"fontSize": "13px", "color": "#52606D", "marginBottom": "16px"},
+        ),
+        html.H4("Race / Ancestry Comparison", style={"color": UCONN_NAVY, "margin": "0 0 10px 0"}),
+        html.Div([
+            dcc.Graph(figure=_sv_type_group_figure(race_df, group), config={"displayModeBar": False})
+            for group in race_groups
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(280px, 1fr))", "gap": "14px"}),
+        html.H4("Role Comparison", style={"color": UCONN_NAVY, "margin": "22px 0 10px 0"}),
+        html.Div([
+            dcc.Graph(figure=_sv_type_group_figure(role_df, group), config={"displayModeBar": False})
+            for group in role_groups
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(280px, 1fr))", "gap": "14px"}),
+        html.H4("Phenotype / Status Comparison", style={"color": UCONN_NAVY, "margin": "22px 0 10px 0"}),
+        html.Div([
+            dcc.Graph(figure=_sv_type_group_figure(role_df, group), config={"displayModeBar": False})
+            for group in phenotype_groups
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(280px, 1fr))", "gap": "14px"}),
+    ], style={**CARD_STYLE, "marginTop": "18px"})
+
+
 def _gene_exon_figure(dataframe):
     if dataframe.empty:
         return px.bar(title="Genes and Exons by Chromosome")
@@ -342,6 +504,7 @@ def _static_layout():
     individual_sv_counts = _load_csv("individual_sv_counts.csv")
     phenotype_distribution = _load_csv("phenotype_distribution.csv")
     sv_region_counts = _load_csv("sv_region_counts.csv")
+    sv_type_group_distribution = _load_csv("sv_type_group_distribution.csv")
 
     return html.Div([
         html.P(
@@ -392,6 +555,7 @@ def _static_layout():
             dcc.Graph(figure=_cohort_figure(cohort_counts), config={"displayModeBar": False}),
         ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(420px, 1fr))", "gap": "16px", "marginTop": "18px"}),
         html.Div(dcc.Graph(figure=_gene_exon_figure(gene_exon_by_chromosome), config={"displayModeBar": False}), style={**CARD_STYLE, "marginTop": "18px"}),
+        _sv_type_group_section(sv_type_group_distribution),
         html.Div([html.H3("Database Table Counts", style={"color": UCONN_NAVY}), _table(table_counts, page_size=12)], style={**CARD_STYLE, "marginTop": "18px"}),
     ])
 

@@ -1,13 +1,12 @@
 """
 Curated case study content loader backed by a committed local folder.
 
-Case-study JSON files and the optional ``SUMMARY.xlsx`` / ``SUMMARY.csv`` table
+Case-study JSON files and the optional ``SUMMARY.csv`` table
 live in the repository's ``case_studies/`` folder (committed to Git) and are
 read directly at runtime. Content is local-only; there is no OneDrive/rclone
 refresh step.
 
-Besides per-case JSON files, the folder may contain a ``SUMMARY.xlsx`` or
-``SUMMARY.csv`` file (xlsx preferred) describing the curated case-study genes;
+Besides per-case JSON files, the folder may contain a ``SUMMARY.csv`` file describing the curated case-study genes;
 ``load_case_study_summary()`` reads it into a table the Case Study page renders.
 
 Configuration (os.environ or a gitignored rclone/.env file):
@@ -23,11 +22,9 @@ import os
 import pathlib
 from typing import Any
 
-from .xlsx_reader import read_xlsx
-
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-SUMMARY_FILE_NAMES = ("SUMMARY.xlsx", "SUMMARY.csv")
+SUMMARY_FILE_NAMES = ("SUMMARY.csv",)
 DEFAULT_CACHE_DIR = PROJECT_ROOT / "case_studies"
 ENV_FILE = PROJECT_ROOT / "rclone" / ".env"
 
@@ -143,19 +140,16 @@ def summary_file() -> pathlib.Path | None:
 def load_case_study_summary() -> dict[str, Any] | None:
     """Load the curated case-study summary table into {"file", "columns", "rows"}.
 
-    Reads ``SUMMARY.xlsx`` (via the dependency-free xlsx reader) or falls back
-    to ``SUMMARY.csv`` in the cache. Returns None when no summary file is
-    present or it cannot be parsed; unreadable files never raise.
+    Reads ``SUMMARY.csv`` from the local case-study folder. Returns None when
+    no summary file is present or it cannot be parsed; unreadable files never
+    raise.
     """
     path = summary_file()
     if path is None:
         return None
     try:
-        if path.suffix.lower() == ".xlsx":
-            rows = read_xlsx(path)
-        else:
-            with path.open("r", encoding="utf-8", newline="") as handle:
-                rows = [dict(row) for row in csv.DictReader(handle)]
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            rows = [dict(row) for row in csv.DictReader(handle)]
     except Exception:
         return None
     if not rows:

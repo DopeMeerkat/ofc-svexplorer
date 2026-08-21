@@ -126,6 +126,84 @@ def _sv_type_counts(conn: sqlite3.Connection) -> pd.DataFrame:
     return df
 
 
+def _sv_type_group_distribution(conn: sqlite3.Connection) -> pd.DataFrame:
+    """SV row-type distributions within publication-relevant sample groups."""
+    df = _read_sql(conn, """
+        SELECT 'Race / ancestry comparison' AS comparison,
+               p.race AS group_name,
+               UPPER(TRIM(ps.type)) AS sv_type,
+               COUNT(*) AS raw_count,
+               COUNT(DISTINCT ps.sample) AS unique_samples
+        FROM phenotype_svs AS ps
+        JOIN phenotype AS p ON p.bam_id = ps.sample
+        WHERE p.race IN ('African', 'Asian')
+          AND ps.type IS NOT NULL AND TRIM(ps.type) != ''
+        GROUP BY p.race, UPPER(TRIM(ps.type))
+        UNION ALL
+        SELECT 'Role / phenotype comparison' AS comparison,
+               CASE WHEN p.child = 1 THEN 'Child' ELSE 'Parents' END AS group_name,
+               UPPER(TRIM(ps.type)) AS sv_type,
+               COUNT(*) AS raw_count,
+               COUNT(DISTINCT ps.sample) AS unique_samples
+        FROM phenotype_svs AS ps
+        JOIN phenotype AS p ON p.bam_id = ps.sample
+        WHERE ps.type IS NOT NULL AND TRIM(ps.type) != ''
+        GROUP BY CASE WHEN p.child = 1 THEN 'Child' ELSE 'Parents' END, UPPER(TRIM(ps.type))
+        UNION ALL
+        SELECT 'Role / phenotype comparison' AS comparison,
+               'Affected' AS group_name,
+               UPPER(TRIM(ps.type)) AS sv_type,
+               COUNT(*) AS raw_count,
+               COUNT(DISTINCT ps.sample) AS unique_samples
+        FROM phenotype_svs AS ps
+        JOIN phenotype AS p ON p.bam_id = ps.sample
+        WHERE p.affected = 1
+          AND ps.type IS NOT NULL AND TRIM(ps.type) != ''
+        GROUP BY UPPER(TRIM(ps.type))
+        UNION ALL
+        SELECT 'Role / phenotype comparison' AS comparison,
+               CASE WHEN p.pheno = 'Normal' THEN 'Normal' ELSE p.pheno END AS group_name,
+               UPPER(TRIM(ps.type)) AS sv_type,
+               COUNT(*) AS raw_count,
+               COUNT(DISTINCT ps.sample) AS unique_samples
+        FROM phenotype_svs AS ps
+        JOIN phenotype AS p ON p.bam_id = ps.sample
+        WHERE p.pheno IN ('Normal', 'CL', 'CLP')
+          AND ps.type IS NOT NULL AND TRIM(ps.type) != ''
+        GROUP BY CASE WHEN p.pheno = 'Normal' THEN 'Normal' ELSE p.pheno END, UPPER(TRIM(ps.type))
+        UNION ALL
+        SELECT 'Role / phenotype comparison' AS comparison,
+               'Background population' AS group_name,
+               UPPER(TRIM(type)) AS sv_type,
+               COUNT(*) AS raw_count,
+               COUNT(DISTINCT sample) AS unique_samples
+        FROM background_svs
+        WHERE type IS NOT NULL AND TRIM(type) != ''
+        GROUP BY UPPER(TRIM(type))
+    """)
+    if df.empty:
+        return pd.DataFrame(columns=[
+            "comparison", "group", "sv_type", "raw_count", "group_total",
+            "normalized_percent", "unique_samples", "count_per_sample",
+        ])
+    df = df.rename(columns={"group_name": "group"})
+    df["raw_count"] = pd.to_numeric(df["raw_count"], errors="coerce").fillna(0).astype(int)
+    df["unique_samples"] = pd.to_numeric(df["unique_samples"], errors="coerce").fillna(0).astype(int)
+    df["group_total"] = df.groupby(["comparison", "group"])["raw_count"].transform("sum").astype(int)
+    df["normalized_percent"] = df["raw_count"] / df["group_total"].replace(0, np.nan) * 100
+    df["normalized_percent"] = df["normalized_percent"].fillna(0)
+    df["count_per_sample"] = df.apply(
+        lambda row: row["raw_count"] / row["unique_samples"] if row["unique_samples"] else 0,
+        axis=1,
+    )
+    return df[
+        [
+            "comparison", "group", "sv_type", "raw_count", "group_total",
+            "normalized_percent", "unique_samples", "count_per_sample",
+        ]
+    ]
+
+
 def _chromosome_distribution(conn: sqlite3.Connection) -> pd.DataFrame:
     df = _read_sql(conn, """
         SELECT chrom, COUNT(DISTINCT id) AS structural_variants
@@ -559,6 +637,7 @@ def generate(db_path: str = DB_PATH) -> None:
         cohort_counts = _cohort_counts(conn)
         sv_count_statistics = _sv_count_statistics(conn)
         sv_type_counts = _sv_type_counts(conn)
+        sv_type_group_distribution = _sv_type_group_distribution(conn)
         chromosome_distribution = _chromosome_distribution(conn)
         sv_length_bins = _sv_length_bins(conn)
         gene_exon_by_chromosome = _gene_exon_by_chromosome(conn)
@@ -578,6 +657,7 @@ def generate(db_path: str = DB_PATH) -> None:
         _write_csv(cohort_counts, "cohort_counts.csv")
         _write_csv(sv_count_statistics, "sv_count_statistics.csv")
         _write_csv(sv_type_counts, "sv_type_counts.csv")
+        _write_csv(sv_type_group_distribution, "sv_type_group_distribution.csv")
         _write_csv(chromosome_distribution, "chromosome_distribution.csv")
         _write_csv(sv_length_bins, "sv_length_bins.csv")
         _write_csv(gene_exon_by_chromosome, "gene_exon_by_chromosome.csv")

@@ -2,7 +2,7 @@
 Pathway network (edges/nodes) loader backed by a local rclone cache.
 
 Each network version is a subdirectory of the configured OneDrive pathway
-folder (e.g. ``Baseline``, ``Extended1``). Within a directory the first CSV
+folder (e.g. ``Baseline``, ``Extended1``, ``CaseStudy6``). Within a directory the first CSV
 whose filename starts with ``edges`` is used as the edge table and the first
 starting with ``nodes`` as the node table. The cache mirrors the remote via
 ``rclone sync``.
@@ -16,7 +16,7 @@ Configuration (os.environ or the gitignored ``rclone/.env`` file):
 
 If the cache is not configured or populated yet, a built-in fallback list is
 returned based on the bundled ``pathway/*.csv`` files so the page still
-renders Baseline/Extended1 without OneDrive access.
+renders Baseline/Extended/Case Study 6 without OneDrive access.
 """
 
 from __future__ import annotations
@@ -36,8 +36,9 @@ DEFAULT_TIMEOUT = 120
 PATHWAY_DIR = PROJECT_ROOT / "pathway"
 
 _BUILTIN_NETWORKS = (
-    ("Baseline", "edges_e.csv", "nodes_e.csv"),
-    ("Extended1", "edges_v1.csv", "nodes_v1.csv"),
+    ("Baseline", "Baseline", "edges_e.csv", "nodes_e.csv"),
+    ("Extended1", "Extended", "edges_v1.csv", "nodes_v1.csv"),
+    ("CaseStudy6", "Case Study 6", "edges_v3.csv", "nodes_v3.csv"),
 )
 
 
@@ -140,24 +141,24 @@ def _discovered_versions() -> list[dict[str, Any]]:
 
 def _builtin_versions() -> list[dict[str, Any]]:
     versions: list[dict[str, Any]] = []
-    for name, edges_name, nodes_name in _BUILTIN_NETWORKS:
+    for version_id, label, edges_name, nodes_name in _BUILTIN_NETWORKS:
         edges = PATHWAY_DIR / edges_name
         nodes = PATHWAY_DIR / nodes_name
         if edges.is_file() and nodes.is_file():
-            versions.append({"id": name, "label": name, "edges": edges, "nodes": nodes})
+            versions.append({"id": version_id, "label": label, "edges": edges, "nodes": nodes})
     return versions
 
 
 def list_versions() -> list[dict[str, Any]]:
     """Return sorted [{id, label, edges, nodes}] network versions.
 
-    Prefers versions discovered from the cache; falls back to the bundled
-    local CSVs when the cache is empty or unconfigured.
+    Uses bundled local CSVs as the baseline registry and lets discovered cache
+    entries replace bundled versions with the same ID.
     """
-    versions = _discovered_versions()
-    if versions:
-        return versions
-    return _builtin_versions()
+    versions = {version["id"]: version for version in _builtin_versions()}
+    for version in _discovered_versions():
+        versions[version["id"]] = version
+    return list(versions.values())
 
 
 def invalid_versions() -> list[tuple[str, str]]:

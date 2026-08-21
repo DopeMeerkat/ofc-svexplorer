@@ -13,12 +13,13 @@ import pandas as pd
 from dash import Input, Output, callback, dash_table, dcc, html, no_update
 
 from utils import case_studies
+from utils.curated_table import CURATED_TABLE_PATH, curated_table_footnote_lines
 from utils.database import DB_PATH
 from utils.styling import UCONN_LIGHT_BLUE, UCONN_NAVY, page_title_style, uconn_styles
 
 
 FALLBACK_CASE_ID = "TET3-local"
-CURATED_GENE_TABLE = Path(__file__).resolve().parents[1] / "pLI" / "tab_43_genes.csv"
+CURATED_GENE_TABLE = Path(__file__).resolve().parents[1] / CURATED_TABLE_PATH
 
 SECTION_HEADING_STYLE = {
     "color": UCONN_NAVY,
@@ -59,12 +60,6 @@ def _load_tet3_supporting_data():
             UNION ALL
             SELECT 'Overlapping with enhancer candidates', COUNT(*), COUNT(DISTINCT ps.id)
             FROM tet3_svs ps
-            JOIN poised_enhancer_candidates c ON c.chrom = ps.chrom
-                AND ps.start <= c.end
-                AND ps."end" >= c.start
-            UNION ALL
-            SELECT 'Overlapping with active candidates', COUNT(*), COUNT(DISTINCT ps.id)
-            FROM tet3_svs ps
             JOIN active_enhancer_candidates c ON c.chrom = ps.chrom
                 AND ps.start <= c.end
                 AND ps."end" >= c.start
@@ -95,10 +90,11 @@ def _load_tet3_expression_finding():
 
     table = pd.read_csv(CURATED_GENE_TABLE)
     row = table[table["Gene"].astype(str).str.upper() == "TET3"]
-    if row.empty or "NCC_13.5" not in row.columns:
+    expression_column = next((column for column in table.columns if str(column).startswith("NCC_13.5")), None)
+    if row.empty or not expression_column:
         return "Not available"
 
-    value = pd.to_numeric(row.iloc[0]["NCC_13.5"], errors="coerce")
+    value = pd.to_numeric(row.iloc[0][expression_column], errors="coerce")
     if pd.isna(value):
         return "Not available"
     if value >= 7:
@@ -141,23 +137,29 @@ def _case_study_options():
 
 
 def _case_study_summary_table():
-    """Render the curated gene summary table from SUMMARY.xlsx/.csv, if present."""
+    """Render the curated 41-gene summary table from SUMMARY.csv, if present."""
     summary = case_studies.load_case_study_summary()
     if summary is None:
         return html.Div("No case study summary table is available.", style={"color": "#A61B1B", "fontWeight": "600"})
     columns = [{"name": column, "id": column} for column in summary["columns"]]
-    return dash_table.DataTable(
-        id="case-study-summary-table",
-        data=summary["rows"],
-        columns=columns,
-        page_size=10,
-        sort_action="native",
-        filter_action="native",
-        style_table={"overflowX": "auto"},
-        style_cell={"textAlign": "left", "padding": "9px", "fontSize": "14px", "whiteSpace": "normal"},
-        style_data={"cursor": "pointer"},
-        style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold", "color": UCONN_NAVY},
-    )
+    return html.Div([
+        dash_table.DataTable(
+            id="case-study-summary-table",
+            data=summary["rows"],
+            columns=columns,
+            page_size=10,
+            sort_action="native",
+            filter_action="native",
+            style_table={"overflowX": "auto"},
+            style_cell={"textAlign": "left", "padding": "9px", "fontSize": "14px", "whiteSpace": "normal"},
+            style_data={"cursor": "pointer"},
+            style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold", "color": UCONN_NAVY},
+        ),
+        html.Div([
+            html.P(line, style={"margin": "2px 0"})
+            for line in curated_table_footnote_lines()
+        ], style={"fontSize": "12px", "color": "#4B5563", "lineHeight": "1.45", "marginTop": "10px"}),
+    ])
 
 
 def _case_id_from_gene_value(value):
