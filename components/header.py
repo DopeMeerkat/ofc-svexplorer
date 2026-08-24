@@ -27,8 +27,33 @@ def create_uconn_header():
                     'fontSize': '14px',
                     'color': '#FFFFFF'
                 })
-            ])
-        ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '8px'}),
+            ]),
+            html.Div([
+                html.A(
+                    'Gallery',
+                    href='https://github.com/DopeMeerkat/ofc-svexplorer/blob/prod/gallery.md',
+                    target='_blank',
+                    style={
+                        'color': '#FFFFFF',
+                        'textDecoration': 'underline',
+                        'fontWeight': '600',
+                        'fontSize': '14px',
+                        'marginRight': '18px',
+                    },
+                ),
+                html.A(
+                    'GitHub',
+                    href='https://github.com/DopeMeerkat/ofc-svexplorer/tree/prod',
+                    target='_blank',
+                    style={
+                        'color': '#FFFFFF',
+                        'textDecoration': 'underline',
+                        'fontWeight': '600',
+                        'fontSize': '14px',
+                    },
+                ),
+            ], style={'display': 'flex', 'alignItems': 'flex-start', 'paddingTop': '4px'})
+        ], style={'display': 'flex', 'alignItems': 'flex-start', 'justifyContent': 'space-between', 'width': '100%', 'marginBottom': '8px'}),
         # Tabs navigation
         dcc.Tabs(
             id='main-tabs',
