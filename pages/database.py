@@ -120,7 +120,6 @@ def _annotation_overlap_table(dataframe, page_size=8, average_sample_count=None)
     if average_sample_count:
         average_columns = {
             "overlap_records": "average_overlap_records_per_sample",
-            "distinct_sv_gene_pairs": "average_distinct_sv_gene_pairs_per_sample",
             "distinct_svs": "average_distinct_svs_per_sample",
             "distinct_genes": "average_distinct_genes_per_sample",
             "distinct_annotation_records": "average_distinct_gf_records_per_sample",
@@ -142,7 +141,6 @@ def _annotation_overlap_table(dataframe, page_size=8, average_sample_count=None)
     labels = {
         "annotation": "Genomic Feature",
         "average_overlap_records_per_sample": "Overlap Records",
-        "average_distinct_sv_gene_pairs_per_sample": "SV-Gene Pairs",
         "average_distinct_svs_per_sample": "SVs",
         "average_distinct_genes_per_sample": "Genes",
         "average_distinct_gf_records_per_sample": "GF Records",
@@ -158,7 +156,6 @@ def _annotation_overlap_table(dataframe, page_size=8, average_sample_count=None)
     tooltip_header = {
         "annotation": "Genomic feature class being compared with SV-gene records.",
         "average_overlap_records_per_sample": "Average number of SV-gene-to-feature overlap records per person.",
-        "average_distinct_sv_gene_pairs_per_sample": "Average number of unique SV-gene pairs with this feature overlap per person.",
         "average_distinct_svs_per_sample": "Average number of unique SVs with this feature overlap per person.",
         "average_distinct_genes_per_sample": "Average number of genes with this feature overlap per person.",
         "average_distinct_gf_records_per_sample": "Average number of genomic feature records overlapped per person.",
@@ -396,12 +393,18 @@ def _length_figure(dataframe):
         labels={"length_bin": "SV Length", "structural_variants": "Structural Variants"},
         title=(
             "SV Length Distribution"
-            "<br><br><sup>SV calls were generated from Illumina short-read sequencing data; "
-            "length distributions should be interpreted in that detection context.</sup>"
+            "<br><br><sup>SV calls were generated from Illumina short-read sequencing data;</sup>"
+            "<br><sup>length distributions should be interpreted in that detection context.</sup>"
         ),
         color_discrete_sequence=[UCONN_LIGHT_BLUE],
     )
-    fig.update_layout(height=720, margin=dict(l=60, r=20, t=95, b=140), plot_bgcolor="#FFFFFF")
+    fig.update_traces(hovertemplate="SV length: %{x}<br>Structural variants: %{y:,}<extra></extra>")
+    fig.update_layout(
+        height=720,
+        margin=dict(l=60, r=90, t=95, b=140),
+        plot_bgcolor="#FFFFFF",
+        hoverlabel={"align": "left"},
+    )
     return fig
 
 
@@ -602,7 +605,7 @@ def _static_layout():
                 config={"displayModeBar": False, "responsive": True},
                 style={"height": "760px"},
             ),
-        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(420px, 1fr))", "gap": "16px", "marginTop": "18px", "alignItems": "stretch"}),
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(420px, 1fr))", "gap": "42px", "marginTop": "18px", "alignItems": "stretch"}),
         _sv_type_group_section(sv_type_group_distribution),
     ])
 

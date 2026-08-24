@@ -24,7 +24,7 @@ from typing import Any
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-SUMMARY_FILE_NAMES = ("SUMMARY.csv",)
+SUMMARY_FILE_NAMES = ("summaries.csv", "SUMMARY.csv")
 DEFAULT_CACHE_DIR = PROJECT_ROOT / "case_studies"
 ENV_FILE = PROJECT_ROOT / "rclone" / ".env"
 
@@ -128,6 +128,25 @@ def list_case_studies() -> list[dict[str, Any]]:
     return studies
 
 
+def _case_gene_key(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return text.split("(", 1)[0].strip().split()[0].upper()
+
+
+def _available_case_gene_keys() -> set[str]:
+    keys: set[str] = set()
+    for study in list_case_studies():
+        case_id = study.get("id", "")
+        title = study.get("title", "")
+        for value in (case_id, title):
+            key = _case_gene_key(value)
+            if key:
+                keys.add(key)
+    return keys
+
+
 def summary_file() -> pathlib.Path | None:
     """Return the curated summary file in the cache (xlsx preferred), or None."""
     for name in SUMMARY_FILE_NAMES:
@@ -142,17 +161,40 @@ def load_case_study_summary() -> dict[str, Any] | None:
 
     Reads ``SUMMARY.csv`` from the local case-study folder. Returns None when
     no summary file is present or it cannot be parsed; unreadable files never
-    raise.
+    raise. Rows are limited to genes with available local case-study JSON files.
     """
     path = summary_file()
     if path is None:
         return None
     try:
         with path.open("r", encoding="utf-8", newline="") as handle:
-            rows = [dict(row) for row in csv.DictReader(handle)]
+            raw_rows = list(csv.reader(handle))
     except Exception:
         return None
+
+    header_index = None
+    for index, raw_row in enumerate(raw_rows):
+        if any(str(value).strip().lower() == "gene" for value in raw_row):
+            header_index = index
+            break
+    if header_index is None:
+        return None
+
+    columns = [column for column in raw_rows[header_index] if str(column).strip()]
+    rows = []
+    for raw_row in raw_rows[header_index + 1:]:
+        row = {
+            column: raw_row[index] if index < len(raw_row) else ""
+            for index, column in enumerate(columns)
+        }
+        if any(str(value).strip() for value in row.values()):
+            rows.append(row)
     if not rows:
         return None
-    columns = [column for column in rows[0].keys() if str(column).strip()]
+    gene_column = next((column for column in columns if str(column).strip().lower() == "gene"), None)
+    available_genes = _available_case_gene_keys()
+    if gene_column and available_genes:
+        rows = [row for row in rows if _case_gene_key(row.get(gene_column)) in available_genes]
+    if not rows:
+        return None
     return {"file": path.name, "columns": columns, "rows": rows}

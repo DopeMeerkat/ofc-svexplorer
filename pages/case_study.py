@@ -13,7 +13,7 @@ import pandas as pd
 from dash import Input, Output, callback, dash_table, dcc, html, no_update
 
 from utils import case_studies
-from utils.curated_table import CURATED_TABLE_PATH, curated_table_footnote_lines
+from utils.curated_table import CURATED_TABLE_PATH
 from utils.database import DB_PATH
 from utils.styling import UCONN_LIGHT_BLUE, UCONN_NAVY, page_title_style, uconn_styles
 
@@ -130,36 +130,28 @@ def _supporting_data_table():
 
 
 def _case_study_options():
-    """Dropdown options from the JSON cache, plus the built-in fallback."""
-    options = [{"label": study["title"], "value": study["id"]} for study in case_studies.list_case_studies()]
-    options.append({"label": FALLBACK_CASE_ID, "value": FALLBACK_CASE_ID})
-    return options
+    """Dropdown options from the static JSON case-study files."""
+    return [{"label": study["title"], "value": study["id"]} for study in case_studies.list_case_studies()]
 
 
 def _case_study_summary_table():
-    """Render the curated 41-gene summary table from SUMMARY.csv, if present."""
+    """Render the case-study summary table from SUMMARY.csv, if present."""
     summary = case_studies.load_case_study_summary()
     if summary is None:
         return html.Div("No case study summary table is available.", style={"color": "#A61B1B", "fontWeight": "600"})
     columns = [{"name": column, "id": column} for column in summary["columns"]]
-    return html.Div([
-        dash_table.DataTable(
-            id="case-study-summary-table",
-            data=summary["rows"],
-            columns=columns,
-            page_size=10,
-            sort_action="native",
-            filter_action="native",
-            style_table={"overflowX": "auto"},
-            style_cell={"textAlign": "left", "padding": "9px", "fontSize": "14px", "whiteSpace": "normal"},
-            style_data={"cursor": "pointer"},
-            style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold", "color": UCONN_NAVY},
-        ),
-        html.Div([
-            html.P(line, style={"margin": "2px 0"})
-            for line in curated_table_footnote_lines()
-        ], style={"fontSize": "12px", "color": "#4B5563", "lineHeight": "1.45", "marginTop": "10px"}),
-    ])
+    return dash_table.DataTable(
+        id="case-study-summary-table",
+        data=summary["rows"],
+        columns=columns,
+        page_size=10,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "left", "padding": "9px", "fontSize": "14px", "whiteSpace": "normal"},
+        style_data={"cursor": "pointer"},
+        style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold", "color": UCONN_NAVY},
+    )
 
 
 def _case_id_from_gene_value(value):
@@ -180,7 +172,8 @@ def _default_case_id(search=None):
     for study in case_studies.list_case_studies():
         if study["id"] == "TET3":
             return "TET3"
-    return FALLBACK_CASE_ID
+    studies = case_studies.list_case_studies()
+    return studies[0]["id"] if studies else None
 
 
 def _default_tab(search=None):
@@ -379,9 +372,7 @@ def _open_case_from_summary_row(active_cell, rows):
 )
 def _render_selected_case(case_id):
     if not case_id:
-        case_id = FALLBACK_CASE_ID
-    if case_id == FALLBACK_CASE_ID:
-        return _render_local_tet3()
+        return html.Div("No case studies are available.", style={"color": "#A61B1B", "fontWeight": "600"})
 
     data = case_studies.load_case_study(case_id)
     if data is None:
