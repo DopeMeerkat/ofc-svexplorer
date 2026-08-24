@@ -99,7 +99,7 @@ def _table(dataframe, page_size=10):
         numeric = pd.to_numeric(display[column], errors="coerce")
         if numeric.notna().any():
             display[column] = display[column].where(
-                numeric.isna() | (numeric.abs() < 10_000),
+                numeric.isna() | (numeric.abs() < 1_000),
                 numeric.map(lambda value: f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"),
             )
     return dash_table.DataTable(
