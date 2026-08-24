@@ -25,6 +25,12 @@ PRIMARY_COLUMN_ORDER = [
     'fusorsvid',
     'fusorsvids',
 ]
+NCC_EXPRESSION_COLUMNS = {
+    'ncc125',
+    'ncc135',
+    'ncc14',
+    'ncc145',
+}
 
 
 def _normalize_column_name(column_name):
@@ -40,6 +46,25 @@ def _ordered_columns(df):
             if _normalize_column_name(column) == target and column not in primary
         )
     return primary + [column for column in columns if column not in primary]
+
+
+def _format_ncc_expression_columns(df):
+    display = df.copy()
+    for column in display.columns:
+        if _normalize_column_name(column) not in NCC_EXPRESSION_COLUMNS:
+            continue
+        display[column] = display[column].map(_format_four_decimals)
+    return display
+
+
+def _format_four_decimals(value):
+    text = str(value).strip()
+    if not text or text.lower() == 'nan':
+        return ''
+    try:
+        return f'{float(text):.4f}'
+    except ValueError:
+        return text
 
 
 def _split_cell_values(value):
@@ -183,6 +208,7 @@ def page_layout(search=None):
     ordered_columns = _ordered_columns(df)
     df = df[ordered_columns]
     df = _mark_case_study_genes(df)
+    df = _format_ncc_expression_columns(df)
 
     return html.Div([
         html.H2(title, style=page_title_style),

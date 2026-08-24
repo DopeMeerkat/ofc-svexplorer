@@ -32,6 +32,7 @@ SV_TYPE_ORDER = ["DEL", "INS", "INV", "DUP"]
 RACE_GROUP_ORDER = ["African", "Asian"]
 ROLE_GROUP_ORDER = ["Child", "Parents", "Background population"]
 PHENOTYPE_GROUP_ORDER = ["Affected", "Normal", "CL", "CLP"]
+SV_GF_AVERAGE_SAMPLE_COUNT = 710
 HG38_CHROMOSOME_LENGTHS = {
     "chr1": 248956422,
     "chr2": 242193529,
@@ -61,14 +62,14 @@ HG38_CHROMOSOME_LENGTHS = {
 
 
 METRIC_TOOLTIPS = {
-    "Families": "COUNT(DISTINCT family_id) from phenotype.",
-    "Samples": "COUNT(*) from phenotype.",
-    "Cases (Affected)": "COUNT(*) from phenotype where affected = 1.",
-    "Parents": "COUNT(*) from phenotype where child = 0.",
-    "Background Controls": "COUNT(DISTINCT sample) from background_svs.",
-    "Unique SVs": "COUNT(DISTINCT id) from phenotype_svs.",
-    "Annotated Genes": "COUNT(*) from genes.",
-    "Regulatory Elements": "Distinct genomic intervals across active enhancers, promoters, insulators, and no-cleft embryo cCREs.",
+    "Families": "Number of family groups represented in the cohort.",
+    "Samples": "Number of sequenced individuals represented in the cohort.",
+    "Cases (Affected)": "Number of individuals marked as affected in the cohort.",
+    "Parents": "Number of parent samples represented in the cohort.",
+    "Background Controls": "Number of background control samples available for comparison.",
+    "Unique SVs": "Number of distinct structural variant calls observed across the cohort.",
+    "Annotated Genes": "Number of genes available for gene-overlap and annotation summaries.",
+    "Regulatory Elements": "Number of distinct regulatory feature intervals used for overlap summaries.",
 }
 
 
@@ -93,27 +94,58 @@ def _chromosome_order(values):
 def _table(dataframe, page_size=10):
     if dataframe.empty:
         return html.P("Cached data is not available. Run database/generate_database_overview.py.", style={"color": "#A61B1B"})
+    display = dataframe.copy()
+    for column in display.columns:
+        numeric = pd.to_numeric(display[column], errors="coerce")
+        if numeric.notna().any():
+            display[column] = display[column].where(
+                numeric.isna() | (numeric.abs() < 10_000),
+                numeric.map(lambda value: f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"),
+            )
     return dash_table.DataTable(
-        data=dataframe.to_dict("records"),
+        data=display.to_dict("records"),
         columns=[{"name": column.replace("_", " ").title(), "id": column} for column in dataframe.columns],
         page_size=page_size,
         sort_action="native",
-        filter_action="native",
         style_table={"overflowX": "auto"},
-        style_cell={"textAlign": "left", "padding": "8px", "maxWidth": "320px"},
-        style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold"},
+        style_cell={"textAlign": "center", "padding": "8px", "maxWidth": "320px"},
+        style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold", "textAlign": "center"},
     )
 
 
-def _annotation_overlap_table(dataframe, page_size=8):
+def _annotation_overlap_table(dataframe, page_size=8, average_sample_count=None):
     if dataframe.empty:
         return html.P("Cached data is not available. Run database/generate_database_overview.py.", style={"color": "#A61B1B"})
     display = dataframe.copy()
+    if average_sample_count:
+        average_columns = {
+            "overlap_records": "average_overlap_records_per_sample",
+            "distinct_sv_gene_pairs": "average_distinct_sv_gene_pairs_per_sample",
+            "distinct_svs": "average_distinct_svs_per_sample",
+            "distinct_genes": "average_distinct_genes_per_sample",
+            "distinct_annotation_records": "average_distinct_gf_records_per_sample",
+        }
+        averaged = pd.DataFrame()
+        if "annotation" in display.columns:
+            averaged["annotation"] = display["annotation"]
+        for source_column, average_column in average_columns.items():
+            if source_column in display.columns:
+                values = pd.to_numeric(display[source_column], errors="coerce") / average_sample_count
+                averaged[average_column] = values.map(lambda value: "N/A" if pd.isna(value) else f"{value:,.1f}")
+        for column in display.columns:
+            if column.startswith("pct_"):
+                averaged[column] = display[column]
+        display = averaged
     for column in display.columns:
         if column.startswith("pct_"):
             display[column] = pd.to_numeric(display[column], errors="coerce").map(lambda value: "N/A" if pd.isna(value) else f"{value:.1%}")
     labels = {
         "annotation": "Genomic Feature",
+        "average_overlap_records_per_sample": "Overlap Records",
+        "average_distinct_sv_gene_pairs_per_sample": "SV-Gene Pairs",
+        "average_distinct_svs_per_sample": "SVs",
+        "average_distinct_genes_per_sample": "Genes",
+        "average_distinct_gf_records_per_sample": "GF Records",
         "overlap_records": "Overlap Records",
         "distinct_sv_gene_pairs": "Distinct SV-Gene Pairs",
         "distinct_svs": "Distinct SVs",
@@ -123,15 +155,28 @@ def _annotation_overlap_table(dataframe, page_size=8):
         "pct_annotated_genes": "% Annotated Genes",
         "pct_genomic_feature_records": "% GF Records",
     }
+    tooltip_header = {
+        "annotation": "Genomic feature class being compared with SV-gene records.",
+        "average_overlap_records_per_sample": "Average number of SV-gene-to-feature overlap records per person.",
+        "average_distinct_sv_gene_pairs_per_sample": "Average number of unique SV-gene pairs with this feature overlap per person.",
+        "average_distinct_svs_per_sample": "Average number of unique SVs with this feature overlap per person.",
+        "average_distinct_genes_per_sample": "Average number of genes with this feature overlap per person.",
+        "average_distinct_gf_records_per_sample": "Average number of genomic feature records overlapped per person.",
+        "pct_unique_svs": "Percent of all unique SVs that overlap this feature class.",
+        "pct_annotated_genes": "Percent of annotated genes represented in this feature-overlap set.",
+        "pct_genomic_feature_records": "Percent of all genomic feature records represented in this overlap set.",
+    }
     return dash_table.DataTable(
         data=display.to_dict("records"),
         columns=[{"name": labels.get(column, column.replace("_", " ").title()), "id": column} for column in display.columns],
+        tooltip_header={column: {"value": tooltip_header[column], "type": "text"} for column in display.columns if column in tooltip_header},
+        tooltip_delay=250,
+        tooltip_duration=None,
         page_size=page_size,
         sort_action="native",
-        filter_action="native",
         style_table={"overflowX": "auto"},
-        style_cell={"textAlign": "left", "padding": "8px", "maxWidth": "320px"},
-        style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold"},
+        style_cell={"textAlign": "center", "padding": "8px", "maxWidth": "320px"},
+        style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold", "textAlign": "center"},
     )
 
 
@@ -232,12 +277,12 @@ def _individual_figure(dataframe):
 
 def _individual_sv_figure(dataframe):
     if dataframe.empty:
-        return px.bar(title="SV Calls per Sample")
+        return px.bar(title="Average SV Calls per Sample")
     fig = _horizontal_bar_figure(
-        dataframe, "group", "svs_per_sample", "SV Calls per Sample", "Group", "SV Calls per Sample",
+        dataframe, "group", "svs_per_sample", "Average SV Calls per Sample", "Group", "Average SV calls per sample",
         color=UCONN_LIGHT_BLUE,
     )
-    fig.update_traces(customdata=dataframe[["count", "samples"]], hovertemplate="%{y}<br>%{x:,.1f} SV calls/sample<br>%{customdata[0]:,} SV rows / %{customdata[1]:,} samples<extra></extra>")
+    fig.update_traces(customdata=dataframe[["count", "samples"]], hovertemplate="%{y}<br>%{x:,.1f} average SV calls per sample<br>%{customdata[0]:,} SV rows / %{customdata[1]:,} samples<extra></extra>")
     return fig
 
 
@@ -349,10 +394,14 @@ def _length_figure(dataframe):
         y="structural_variants",
         category_orders={"length_bin": order},
         labels={"length_bin": "SV Length", "structural_variants": "Structural Variants"},
-        title="SV Length Distribution",
+        title=(
+            "SV Length Distribution"
+            "<br><br><sup>SV calls were generated from Illumina short-read sequencing data; "
+            "length distributions should be interpreted in that detection context.</sup>"
+        ),
         color_discrete_sequence=[UCONN_LIGHT_BLUE],
     )
-    fig.update_layout(height=430, margin=dict(l=60, r=20, t=70, b=70), plot_bgcolor="#FFFFFF")
+    fig.update_layout(height=720, margin=dict(l=60, r=20, t=95, b=140), plot_bgcolor="#FFFFFF")
     return fig
 
 
@@ -366,11 +415,13 @@ def _cohort_figure(dataframe):
         color="category",
         facet_col="category",
         facet_col_wrap=3,
+        facet_row_spacing=0.18,
         labels={"value": "Group", "samples": "Samples", "category": "Category"},
         title="Cohort Breakdown",
     )
-    fig.update_xaxes(matches=None, showticklabels=True)
-    fig.update_layout(height=620, margin=dict(l=60, r=20, t=80, b=80), plot_bgcolor="#FFFFFF")
+    fig.for_each_annotation(lambda annotation: annotation.update(text=annotation.text.split("=")[-1].title()))
+    fig.update_xaxes(matches=None, showticklabels=True, tickangle=-35, automargin=True, title_text="")
+    fig.update_layout(height=720, margin=dict(l=60, r=20, t=90, b=140), plot_bgcolor="#FFFFFF")
     return fig
 
 
@@ -424,7 +475,7 @@ def _sv_type_group_figure(dataframe, group):
             "Total SVs in group: %{customdata[2]:,.0f}<br>"
             "Percent of group: %{x:.1f}%<br>"
             "Unique samples: %{customdata[3]:,.0f}<br>"
-            "SV calls/sample: %{customdata[4]:,.1f}"
+            "Average SV calls per sample: %{customdata[4]:,.1f}"
             "<extra></extra>"
         ),
     )
@@ -447,7 +498,7 @@ def _sv_type_group_section(dataframe):
     return html.Div([
         html.H3("SV Type Distributions by Group", style={"color": UCONN_NAVY, "marginBottom": "6px"}),
         html.P(
-            "Each chart shows SV row-type composition within a group. Bar length is normalized percentage; hover text includes raw counts, total SV rows, unique samples, and SV calls per sample.",
+            "Each chart shows SV row-type composition within a group. Bar length is normalized percentage; hover text includes raw counts, total SV rows, unique samples, and average SV calls per sample. The average is raw SV records divided by unique samples in that group.",
             style={"fontSize": "13px", "color": "#52606D", "marginBottom": "16px"},
         ),
         html.H4("Race / Ancestry Comparison", style={"color": UCONN_NAVY, "margin": "0 0 10px 0"}),
@@ -490,16 +541,13 @@ def _gene_exon_figure(dataframe):
 
 def _static_layout():
     summary = _load_summary()
-    table_counts = _load_csv("table_counts.csv")
     cohort_counts = _load_csv("cohort_counts.csv")
     sv_count_statistics = _load_csv("sv_count_statistics.csv")
     sv_type_counts = _load_csv("sv_type_counts.csv")
     chromosome_distribution = _load_csv("chromosome_distribution.csv")
     sv_length_bins = _load_csv("sv_length_bins.csv")
-    gene_exon_by_chromosome = _load_csv("gene_exon_by_chromosome.csv")
     sv_gene_summary = _load_csv("sv_gene_summary.csv")
     sv_gene_annotation_overlap = _load_csv("sv_gene_annotation_overlap.csv")
-    gene_annotation_overlap = _load_csv("gene_annotation_overlap.csv")
     individual_group_counts = _load_csv("individual_group_counts.csv")
     individual_sv_counts = _load_csv("individual_sv_counts.csv")
     phenotype_distribution = _load_csv("phenotype_distribution.csv")
@@ -508,7 +556,7 @@ def _static_layout():
 
     return html.Div([
         html.P(
-            "Cached aggregate summaries describe cohort composition, SV burden, genomic context, and annotation overlap. Individual sample identifiers are not displayed.",
+            "Use the tooltips to see detailed counts, totals, percentages, and per-sample averages for each chart.",
             style={**muted_text_style, "marginBottom": "18px"},
         ),
         _metric_cards(summary),
@@ -528,43 +576,41 @@ def _static_layout():
         ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(360px, 1fr))", "gap": "16px", "marginTop": "18px"}),
         html.Div([
             html.Div([
-                html.H3("SV-GF Overlap", style={"color": UCONN_NAVY}),
+                html.H3("SV-GF Overlap per Person", style={"color": UCONN_NAVY}),
                 html.P(
-                    "SV-gene records where the SV interval intersects each genomic feature (GF). Exon counts require gene matching; active enhancer counts use MESENCHYMAL and NEURALCREST rows.",
+                    f"SV-gene records where the SV interval intersects each genomic feature (GF). Count columns are averages per person, calculated as cohort totals divided by {SV_GF_AVERAGE_SAMPLE_COUNT:,} samples. Exon counts require gene matching; active enhancer counts use MESENCHYMAL and NEURALCREST rows.",
                     style={"fontSize": "13px", "color": "#52606D", "marginBottom": "12px"},
                 ),
-                _annotation_overlap_table(sv_gene_annotation_overlap, page_size=8),
-            ], style=CARD_STYLE),
-            html.Div([
-                html.H3("Gene-GF Overlap", style={"color": UCONN_NAVY}),
-                html.P(
-                    "Gene intervals intersecting each genomic feature (GF). Exon counts use gene_id matching; active enhancer counts use MESENCHYMAL and NEURALCREST rows.",
-                    style={"fontSize": "13px", "color": "#52606D", "marginBottom": "12px"},
+                _annotation_overlap_table(
+                    sv_gene_annotation_overlap,
+                    page_size=8,
+                    average_sample_count=SV_GF_AVERAGE_SAMPLE_COUNT,
                 ),
-                _annotation_overlap_table(gene_annotation_overlap, page_size=8),
             ], style=CARD_STYLE),
-        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(520px, 1fr))", "gap": "16px", "marginTop": "18px"}),
+        ], style={"marginTop": "18px"}),
         html.Div([
             html.Div([
-                dcc.Graph(figure=_length_figure(sv_length_bins), config={"displayModeBar": False}),
-                html.P(
-                    "SV calls were generated from Illumina short-read sequencing data; length distributions should be interpreted in that detection context.",
-                    style={**muted_text_style, "fontSize": "12px", "margin": "-8px 18px 10px 18px"},
+                dcc.Graph(
+                    figure=_length_figure(sv_length_bins),
+                    config={"displayModeBar": False, "responsive": True},
+                    style={"height": "760px"},
                 ),
-            ]),
-            dcc.Graph(figure=_cohort_figure(cohort_counts), config={"displayModeBar": False}),
-        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(420px, 1fr))", "gap": "16px", "marginTop": "18px"}),
-        html.Div(dcc.Graph(figure=_gene_exon_figure(gene_exon_by_chromosome), config={"displayModeBar": False}), style={**CARD_STYLE, "marginTop": "18px"}),
+            ], style={"minHeight": "760px"}),
+            dcc.Graph(
+                id="database-cohort-breakdown-graph",
+                figure=_cohort_figure(cohort_counts),
+                config={"displayModeBar": False, "responsive": True},
+                style={"height": "760px"},
+            ),
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(420px, 1fr))", "gap": "16px", "marginTop": "18px", "alignItems": "stretch"}),
         _sv_type_group_section(sv_type_group_distribution),
-        html.Div([html.H3("Database Table Counts", style={"color": UCONN_NAVY}), _table(table_counts, page_size=12)], style={**CARD_STYLE, "marginTop": "18px"}),
     ])
 
 
 def _interactive_layout():
     return html.Div([
         html.P(
-            "Build a grouped bar graph from the joined phenotype and phenotype_svs database tables. "
-            "This option queries aggregate counts only when controls change.",
+            "Build a bar graph by selecting one or more grouping options and a value to summarize.",
             style={"marginBottom": "16px"},
         ),
         html.Div([
@@ -572,7 +618,7 @@ def _interactive_layout():
             dcc.Checklist(
                 id="database-bar-x-axis",
                 options=[{"label": config["label"], "value": value} for value, config in BAR_X_AXES.items()],
-                value=["chrom"],
+                value=["chrom", "sv_type"],
                 inline=True,
                 inputStyle={"marginRight": "6px"},
                 labelStyle={
@@ -634,10 +680,12 @@ def update_database_bar_graph(x_axes, y_metric):
             "Count",
         )
         labels = [BAR_X_AXES[axis]["label"] for axis in axes]
+        grouping_text = f"Showing {len(primary_order)} {labels[0].lower()} groups."
+        if len(labels) > 1:
+            grouping_text += " Bars are grouped by " + ", ".join(labels[1:]) + "."
         return html.Div([
             html.P(
-                f"Data source: phenotype joined to phenotype_svs on bam_id/sample. "
-                f"{len(primary_order)} {labels[0].lower()} groups.",
+                grouping_text,
                 style={"marginBottom": "15px"},
             ),
             dcc.Graph(figure=fig, style={"height": "600px", "marginBottom": "20px"}),
