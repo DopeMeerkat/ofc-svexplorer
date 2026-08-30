@@ -18,15 +18,13 @@ Production views are designed to avoid exposing individual sample identifiers. T
 
 The Summary page is the entry point for the site. It introduces the cohort analysis and highlights overlap between known OFC genes and genes with recurrent SV signal in the cohort.
 
-![Summary page](images/summary.png)
+![Summary page](images/41genes.png)
 
 Use this page to:
 
 - Review the high-level purpose of the portal.
 - Identify the overlap between literature-supported OFC genes and cohort SV findings.
 - Open the curated 41-gene table by selecting the overlap region.
-
-Screenshot note: this image should show the landing page and the gene-overlap visualization.
 
 ## Database Overview
 
@@ -47,8 +45,6 @@ Use the Interactive tab to build custom aggregate bar graphs:
 - Choose a value to summarize, such as Unique SVs or Samples.
 - Use the generated chart to compare distributions across selected categories.
 
-Screenshot note: this image should show the Database Overview page with the Static tab visible. A separate image can be added later if an Interactive tab example is preferred.
-
 ## Table Inspection
 
 The Table Inspection page presents the curated 41-gene overlap table. It is intended for moving from a summary gene list into locus- and pathway-level review.
@@ -62,24 +58,18 @@ Use this page to:
 - Select clickable Gene or FusorSV ID fields to open navigation options.
 - Open supported entries in IGV/Population, Pathway, or Case Study views.
 
-Screenshot note: this image should show the curated table and, if possible, the navigation action menu after selecting a gene or SV value.
-
 ## IGV/Population
 
 The IGV/Population page supports locus-level review of aggregate structural variant tracks. It is the main genome-browser view in the production site.
 
 ![IGV/Population](images/population.png)
 
-Use this page to:
-
 - Search for a gene and jump directly to its genomic locus.
 - Browse by chromosome when reviewing broader regions.
 - View aggregate SV tracks across the cohort.
 - Add optional annotation tracks, including exons, active enhancer candidates, promoter candidates, insulator candidates, and no-cleft embryo cCREs.
 
-When opened from Table Inspection or Case Study links, the page can load the relevant gene or locus directly.
-
-Screenshot note: this image should show an IGV/Population locus with SV tracks and selected annotation tracks visible.
+Note: When opening a gene or SV from search or a link, the viewer focuses on that region and nearby context for optimization. Use the flanking-window control if you want to see a wider area around a selected SV.
 
 ## Pathway
 
@@ -87,22 +77,15 @@ The Pathway page compares a user-entered gene list against curated palatogenesis
 
 ![Pathway](images/pathway.png)
 
-Use this page to:
-
-- Enter genes as a comma-separated list, for example `TP63, IRF6, GRHL3`.
 - Select `Highlight genes` to mark matching genes and annotated pathway terms.
-- Use `Clear` to remove highlights from the pathway diagrams.
-- Use `Reset view` to reload the diagrams and return to a clean layout.
 - Show or hide the Baseline, Extended, and Case Study 6 network views.
 - Click nodes to inspect labels, identifiers, and annotations.
-
-Screenshot note: this image should show the pathway controls and one or more network diagrams with highlighted query genes.
 
 ## Case Study
 
 The Case Study page contains curated gene-level examples. Each case connects a selected gene to cohort findings, genomic context, pathway interpretation, and supporting literature.
 
-![Case Study](images/igv.png)
+![Case Study](images/case_study.png)
 
 Use this page to:
 
@@ -111,15 +94,8 @@ Use this page to:
 - Read the gene function, IGV, literature, pathway, and supporting-data sections.
 - Follow embedded links to the IGV/Population and Pathway pages.
 
-Screenshot note: replace this placeholder with a dedicated Case Study page screenshot when available.
-
-## Privacy
-
-This is an internal UConn research dashboard prepared for publication-facing review. Production-facing views should avoid exposing individual sample identifiers in the interface, logs, screenshots, or downloads unless a separate internal-only exception is made.
-
 ## Citation
 
-Citation details will be added when the companion publication is available.
 
 ```bibtex
 @article{ofc_sv_explorer,
