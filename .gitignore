@@ -1,7 +1,20 @@
+# Python/generated files
 __pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
 .venv/
+.env
+
+# Local credentials and rclone cache/config
+rclone/
 
 api_key.txt
+
+# Local analysis notebooks and scratch outputs
+*.ipynb
+exploration/
+pLI/
 
 summary.md
 deep-research-report.md
@@ -21,10 +34,14 @@ pathway/edges_e.csv
 
 assets/table.csv
 assets/table_original.csv
+assets/table1_Shin_Tim_41.csv
+assets/table1_Shin_Tim_41.xlsx
 assets/cellvar_chr19_table.csv
 assets/cellvar_ofc_children_table.csv
 assets/proband_sv_inheritance.csv
 assets/proband_sv_inheritance_20250812_143831.csv
+assets/V4-hg38.Gene-Links.3D-Chromatin.txt
+assets/embryo.noccl.cCREs.bed
 
 data/sample_sv_phenotypes.csv
 
