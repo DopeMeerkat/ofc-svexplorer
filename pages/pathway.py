@@ -2,14 +2,10 @@
 Pathway diagram page.
 """
 
-import base64
-import io
-import re
 from pathlib import Path
 from urllib.parse import parse_qs
 
 import dash
-import pandas as pd
 from dash import ALL, Input, Output, State, callback, dcc, html, no_update
 import dash_cytoscape as cyto
 
@@ -116,12 +112,13 @@ def _button_style(background_color=UCONN_NAVY):
     }
 
 
-def _network_panel(choice: dict, query_genes=None, layout_name=DEFAULT_LAYOUT, visible=True) -> html.Div:
+def _network_panel(choice: dict, query_genes=None, layout_name=DEFAULT_LAYOUT, visible=True, remount_token=0) -> html.Div:
     """Build one self-contained network panel for a version choice."""
     version_id = choice["id"]
+    component_index = f"{version_id}:{remount_token}"
     network = _network(version_id)
     query_genes = set(query_genes or [])
-    elements = _build_highlighted_elements(query_genes, version_id) if query_genes else (network["elements"] if network else [])
+    elements = _build_highlighted_elements(query_genes, version_id) if query_genes else _unhighlighted_elements(network["elements"] if network else [])
     layout = {
         **LAYOUT_CONFIGS.get(layout_name, LAYOUT_CONFIGS[DEFAULT_LAYOUT]),
         "fit": True,
@@ -136,14 +133,14 @@ def _network_panel(choice: dict, query_genes=None, layout_name=DEFAULT_LAYOUT, v
             html.Div(
                 [
                     cyto.Cytoscape(
-                        id={"type": "pathway-network", "index": version_id},
+                        id={"type": "pathway-network", "index": component_index},
                         elements=elements,
                         stylesheet=BASE_STYLESHEET,
                         layout=layout,
                         style={"width": "100%", "height": "600px", "border": f"1px solid {UCONN_NAVY}"},
                     ),
                     html.Div(
-                        id={"type": "pathway-hover-info", "index": version_id},
+                        id={"type": "pathway-hover-info", "index": component_index},
                         style={
                             "position": "absolute",
                             "top": "10px",
@@ -161,18 +158,18 @@ def _network_panel(choice: dict, query_genes=None, layout_name=DEFAULT_LAYOUT, v
                 ],
                 style={"position": "relative"},
             ),
-            html.Div(id={"type": "pathway-node-info", "index": version_id}, style={"marginTop": "10px", "fontFamily": "monospace"}),
+            html.Div(id={"type": "pathway-node-info", "index": component_index}, style={"marginTop": "10px", "fontFamily": "monospace"}),
             html.Div(
-                id={"type": "pathway-hit-summary", "index": version_id},
+                id={"type": "pathway-hit-summary", "index": component_index},
                 style={"marginTop": "10px", "fontFamily": "monospace", "whiteSpace": "pre-wrap"},
             ),
         ],
-        id={"type": "pathway-panel", "index": version_id},
+        id={"type": "pathway-panel", "index": component_index},
         style={"flex": "1 1 460px", "minWidth": "420px", "display": "block" if visible else "none"},
     )
 
 
-def _network_panels(versions, query_genes=None, layout_name=DEFAULT_LAYOUT, selected_versions=None):
+def _network_panels(versions, query_genes=None, layout_name=DEFAULT_LAYOUT, selected_versions=None, remount_token=0):
     selected = set(selected_versions) if selected_versions is not None else set(_default_visible_networks())
     return [
         _network_panel(
@@ -180,47 +177,15 @@ def _network_panels(versions, query_genes=None, layout_name=DEFAULT_LAYOUT, sele
             query_genes=query_genes,
             layout_name=layout_name,
             visible=choice["id"] in selected,
+            remount_token=remount_token,
         )
         for choice in versions
     ]
 
 
-def _extract_genes_from_upload(contents: str) -> tuple[set[str], str | None]:
-    if not contents:
-        return set(), None
-
-    try:
-        _, encoded = contents.split(",", 1)
-        decoded = base64.b64decode(encoded).decode("utf-8-sig")
-    except Exception as exc:
-        return set(), f"Could not read uploaded CSV: {exc}"
-
-    try:
-        df = pd.read_csv(io.StringIO(decoded))
-    except Exception as exc:
-        return set(), f"Could not parse uploaded CSV: {exc}"
-
-    if df.empty and not df.columns.empty:
-        raw_tokens = parse_gene_query(" ".join(str(col) for col in df.columns))
-        return raw_tokens, None
-
-    gene_column = None
-    preferred_names = {"gene", "genes", "gene_symbol", "genesymbol", "symbol"}
-    for column in df.columns:
-        normalized = re.sub(r"[^a-z0-9]", "", str(column).lower())
-        if normalized in preferred_names:
-            gene_column = column
-            break
-
-    if gene_column is None:
-        gene_column = df.columns[0]
-        genes = parse_gene_query(" ".join(df[gene_column].dropna().astype(str)))
-        first_header = str(gene_column).strip()
-        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", first_header):
-            genes |= parse_gene_query(first_header)
-        return genes, None
-
-    return parse_gene_query(" ".join(df[gene_column].dropna().astype(str))), None
+def _unhighlighted_elements(elements: list[dict]) -> list[dict]:
+    """Return fresh Cytoscape elements with highlight/dim classes removed."""
+    return [{**element, "classes": ""} for element in elements]
 
 
 def _build_highlighted_elements(query_genes: set[str], version_id: str | None) -> list[dict]:
@@ -287,40 +252,14 @@ def page_layout(search=None):
             ),
             html.Div(
                 [
-                    html.Div(
-                        [
-                            html.Label("Gene list", style={"fontWeight": "600", "color": UCONN_NAVY}),
-                            dcc.Textarea(
-                                id="pathway-gene-input",
-                                value=initial_gene_text,
-                                placeholder="TP63, IRF6, GRHL3, HDAC3, EZH2",
-                                style={"width": "100%", "height": "80px", "marginTop": "6px"},
-                            ),
-                        ],
-                        style={"flex": "1 1 440px"},
-                    ),
-                    html.Div(
-                        [
-                            html.Label("Upload CSV", style={"fontWeight": "600", "color": UCONN_NAVY}),
-                            dcc.Upload(
-                                id="pathway-gene-upload",
-                                children=html.Div(["Drag and drop or select a .csv"]),
-                                accept=".csv,text/csv",
-                                multiple=False,
-                                style={
-                                    "border": f"1px dashed {UCONN_LIGHT_BLUE}",
-                                    "padding": "26px 16px",
-                                    "marginTop": "6px",
-                                    "textAlign": "center",
-                                    "backgroundColor": "#f8fbfd",
-                                },
-                            ),
-                            html.Div(id="pathway-upload-status", style={"fontSize": "13px", "marginTop": "8px"}),
-                        ],
-                        style={"flex": "1 1 320px"},
+                    html.Label("Gene list", style={"fontWeight": "600", "color": UCONN_NAVY}),
+                    dcc.Textarea(
+                        id="pathway-gene-input",
+                        value=initial_gene_text,
+                        style={"width": "100%", "height": "80px", "marginTop": "6px"},
                     ),
                 ],
-                style={"display": "flex", "gap": "18px", "flexWrap": "wrap", "alignItems": "flex-end", "marginBottom": "12px"},
+                style={"marginBottom": "12px"},
             ),
             html.Div(
                 [
@@ -330,6 +269,12 @@ def page_layout(search=None):
                         id="pathway-clear-button",
                         n_clicks=0,
                         style={**_button_style(UCONN_GRAY), "marginLeft": "8px"},
+                    ),
+                    html.Button(
+                        "Reset view",
+                        id="pathway-reset-view-button",
+                        n_clicks=0,
+                        style={**_button_style(UCONN_LIGHT_BLUE), "marginLeft": "8px", "color": UCONN_NAVY},
                     ),
                     html.Span(
                         "Layout",
@@ -341,12 +286,6 @@ def page_layout(search=None):
                         value=DEFAULT_LAYOUT,
                         clearable=False,
                         style={"width": "220px", "display": "inline-block", "verticalAlign": "middle"},
-                    ),
-                    html.Button(
-                        "Reset view",
-                        id="pathway-reset-view-button",
-                        n_clicks=0,
-                        style={**_button_style(UCONN_LIGHT_BLUE), "marginLeft": "8px", "color": UCONN_NAVY},
                     ),
                     html.Span(
                         "Network",
@@ -368,8 +307,8 @@ def page_layout(search=None):
                 id="pathway-network-panels",
                 style={"display": "flex", "gap": "18px", "flexWrap": "wrap", "alignItems": "flex-start"},
             ),
-            dcc.Store(id="pathway-upload-genes-store", data=[]),
             dcc.Store(id="pathway-query-genes-store", data=[]),
+            dcc.Store(id="pathway-remount-token", data=0),
         ],
         style={"padding": "20px"},
     )
@@ -388,21 +327,30 @@ def update_pathway_layout(layout_name):
 
 @callback(
     Output("pathway-network-panels", "children"),
+    Output("pathway-query-genes-store", "data", allow_duplicate=True),
+    Output("pathway-remount-token", "data"),
     Input("pathway-reset-view-button", "n_clicks"),
+    Input("pathway-clear-button", "n_clicks"),
     State("pathway-query-genes-store", "data"),
+    State("pathway-remount-token", "data"),
     State("pathway-layout-dropdown", "value"),
     State("pathway-network-display", "value"),
     prevent_initial_call=True,
 )
-def reset_pathway_network_panels(n_clicks, current_query_genes, layout_name, selected_versions):
-    if not n_clicks:
-        return no_update
-    return _network_panels(
+def reset_pathway_network_panels(reset_clicks, clear_clicks, current_query_genes, current_remount_token, layout_name, selected_versions):
+    if not reset_clicks and not clear_clicks:
+        return no_update, no_update, no_update
+    is_clear = dash.ctx.triggered_id == "pathway-clear-button"
+    query_genes = set() if is_clear else set(current_query_genes or [])
+    remount_token = int(current_remount_token or 0) + 1
+    panels = _network_panels(
         _version_choices(),
-        query_genes=set(current_query_genes or []),
+        query_genes=query_genes,
         layout_name=layout_name or DEFAULT_LAYOUT,
         selected_versions=selected_versions,
+        remount_token=remount_token,
     )
+    return panels, [] if is_clear else no_update, remount_token
 
 
 @callback(Output({"type": "pathway-panel", "index": ALL}, "style"), Input("pathway-network-display", "value"))
@@ -413,22 +361,6 @@ def update_pathway_panel_display(selected_versions):
         visible = choice["id"] in selected
         styles.append({"flex": "1 1 460px", "minWidth": "420px", "display": "block" if visible else "none"})
     return styles
-
-
-@callback(
-    Output("pathway-upload-genes-store", "data"),
-    Output("pathway-upload-status", "children"),
-    Input("pathway-gene-upload", "contents"),
-    State("pathway-gene-upload", "filename"),
-    prevent_initial_call=True,
-)
-def parse_uploaded_gene_csv(contents, filename):
-    genes, error = _extract_genes_from_upload(contents)
-    if error:
-        return [], html.Span(error, style={"color": "#b91c1c"})
-    if not genes:
-        return [], html.Span("No gene symbols found in uploaded CSV.", style={"color": "#b91c1c"})
-    return sorted(genes), html.Span(f"Loaded {len(genes)} gene(s) from {filename}.", style={"color": UCONN_NAVY})
 
 
 @callback(Output({"type": "pathway-node-info", "index": ALL}, "children"), Input({"type": "pathway-network", "index": ALL}, "tapNodeData"))
@@ -456,35 +388,38 @@ def show_pathway_node_info(node_datas):
     Output({"type": "pathway-hit-summary", "index": ALL}, "children"),
     Output("pathway-query-genes-store", "data"),
     Input("pathway-highlight-button", "n_clicks"),
-    Input("pathway-clear-button", "n_clicks"),
     Input("url", "search"),
     State("pathway-gene-input", "value"),
-    State("pathway-upload-genes-store", "data"),
-    State("pathway-query-genes-store", "data"),
     prevent_initial_call=False,
 )
 def highlight_pathway_gene_hits(
     _highlight_clicks,
-    _clear_clicks,
     search,
     query_text,
-    uploaded_genes,
-    current_query_genes,
 ):
     choices = _version_choices()
-    base_elements = [_network(c["id"])["elements"] for c in choices]
-
-    if dash.ctx.triggered_id == "pathway-clear-button":
-        return base_elements, ["Highlight cleared."] * len(choices), []
+    base_elements = [_unhighlighted_elements(_network(c["id"])["elements"]) for c in choices]
+    triggered_id = dash.ctx.triggered_id
 
     url_genes = _genes_from_search(search)
-    query_genes = (url_genes or parse_gene_query(query_text)) | set(uploaded_genes or [])
+    if triggered_id is None:
+        if not url_genes:
+            return [no_update] * len(choices), [no_update] * len(choices), no_update
+        triggered_id = "url"
 
-    if not _highlight_clicks and not url_genes:
+    if triggered_id == "url" and not url_genes:
+        return [no_update] * len(choices), [no_update] * len(choices), no_update
+
+    if triggered_id not in {"pathway-highlight-button", "url"}:
+        return [no_update] * len(choices), [no_update] * len(choices), no_update
+
+    query_genes = url_genes if triggered_id == "url" else parse_gene_query(query_text)
+
+    if not _highlight_clicks and triggered_id != "url":
         return [no_update] * len(choices), [no_update] * len(choices), no_update
 
     if not query_genes:
-        msg = "Enter gene names or upload a CSV containing gene symbols."
+        msg = "Enter gene names to highlight them in the pathway networks."
         return base_elements, [msg] * len(choices), []
 
     return (
