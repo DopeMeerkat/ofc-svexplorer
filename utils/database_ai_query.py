@@ -304,7 +304,7 @@ def get_gene_by_id(gene_id, db_path=DB_PATH):
         print(f"Database error when fetching gene: {e}")
         return None
 
-def load_table_data(csv_path='assets/table.csv'):
+def load_table_data(csv_path='assets/table1_41.csv'):
     """
     Load data from CSV file for the data table
     
@@ -761,7 +761,7 @@ def generate_gene_interactions_data(chromosomes, db_path=DB_PATH):
     
     try:
         # Load the interaction data from table.csv
-        table_df = pd.read_csv('assets/table.csv')
+        table_df = pd.read_csv('assets/table1_41.csv')
         
         print("\n===== CIRCOS GENE INTERACTION DEBUGGING =====")
         print(f"Found {len(table_df)} rows in table.csv")
@@ -931,7 +931,7 @@ def get_all_gene_interactions(db_path=DB_PATH):
     
     try:
         # Load the interaction data from table.csv
-        table_df = pd.read_csv('assets/table.csv')
+        table_df = pd.read_csv('assets/table1_41.csv')
         
         # Connect to the database to get gene coordinates
         conn = sqlite3.connect(db_path)

@@ -1,0 +1,6 @@
+metric,min,median,max
+Total structural variants,3489,4046.0,5142
+Deletion,2602,3045.5,3699
+Duplication,2,53.0,96
+Insertion,466,902.0,1247
+Inversion,64,89.0,117

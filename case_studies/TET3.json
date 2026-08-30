@@ -1,0 +1,105 @@
+{
+  "title": "TET3 - Coding exon disruption",
+  "genes": [
+    "TET3",
+    "SNAI1",
+    "CDH1",
+    "PITX2"
+  ],
+  "sections": [
+    {
+      "heading": "Function",
+      "paragraphs": [
+        "TET3 is responsible for converting 5-methylcytosine (5mC) to 5-hydroxymethylcytosine (5hmC), which is responsible for initiating active DNA demethylation [Ketchum et al., 2024]."
+      ]
+    },
+    {
+      "heading": "IGV",
+      "paragraphs": [
+        {
+          "text": "Our cohort analysis discovers the case(s) in rare frequency that TET3 is disturbed as shown here. ",
+          "links": [
+            {
+              "label": "Open TET3 in IGV",
+              "href": "/population?gene=TET3"
+            }
+          ],
+          "suffix": "."
+        }
+      ]
+    },
+    {
+      "heading": "Literature",
+      "paragraphs": [
+        "When TET3 is compromised, downstream signaling required for neural crest cell differentiation and pharyngeal cartilage formation is impaired, which can lead to craniofacial malformations like cleft lip and palate [Chen et al., 2023, Wang et al., 2024]."
+      ]
+    },
+    {
+      "heading": "Pathway",
+      "paragraphs": [
+        {
+          "text": "Our analysis discovers the case(s) in rare frequency that demonstrates the oligogenic interaction involving TET3. ",
+          "links": [
+            {
+              "label": "Click here (TET3, SNAI1, CDH1, PITX2)",
+              "href": "/pathway?genes=TET3,SNAI1,CDH1,PITX2"
+            }
+          ],
+          "suffix": " to see the co-occurring SVs that are appearing with TET3 in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TET-SNAIL4-BMP axis."
+        }
+      ]
+    },
+    {
+      "heading": "EMT",
+      "paragraphs": [
+        "It is related to EMT, indirectly but convincingly. TET proteins are frequently found upstream of EMT programs because EMT requires large-scale epigenetic reprogramming. TET-mediated DNA demethylation can regulate expression of genes involved in: cell fate transitions, epithelial identity, migration, differentiation. It may not be an EMT transcription factor, but it can be labelled as EMT-enabling epigenetic regulator."
+      ]
+    },
+    {
+      "heading": "Supporting Data",
+      "paragraphs": [
+        "The evidence supporting the causality of the co-occurring SVs for ns-OFC has been curated. The summary is given below."
+      ],
+      "table": {
+        "columns": [
+          {
+            "name": "Evidence",
+            "id": "Evidence"
+          },
+          {
+            "name": "Finding",
+            "id": "Finding"
+          }
+        ],
+        "rows": [
+          {
+            "Evidence": "Overlapping with exons",
+            "Finding": "Yes"
+          },
+          {
+            "Evidence": "Overlapping with enhancer candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with active candidates",
+            "Finding": "Yes"
+          },
+          {
+            "Evidence": "Overlapping with promoter candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Gene expression data (NCC E13.5)",
+            "Finding": "Highly expressed (NCC E13.5 = 7.61)"
+          }
+        ]
+      }
+    },
+    {
+      "heading": "References",
+      "paragraphs": [
+        "Ketchum HC, Suzuki M, Dawlaty MM. Catalytic-dependent and -independent roles of TET3 in the regulation of specific genetic programs during neuroectoderm specification. Commun Biol. 2024 Apr 5;7(1):415. doi: 10.1038/s42003-024-06120-w. PMID: 38580843; PMCID: PMC10997653."
+      ]
+    }
+  ]
+}

@@ -1,49 +1,80 @@
 """
-Pathway diagram and GO enrichment page.
+Pathway diagram page.
 """
 
-import base64
-import io
-import re
 from pathlib import Path
 from urllib.parse import parse_qs
 
 import dash
-import pandas as pd
-from dash import Input, Output, State, callback, dash_table, dcc, html, no_update
+from dash import ALL, Input, Output, State, callback, dcc, html, no_update
 import dash_cytoscape as cyto
 
 from pathway.network_app_rel import (
     DEFAULT_LAYOUT,
     HIT_COLOR,
     LAYOUT_CONFIGS,
-    build_cytoscape_elements,
-    build_node_table,
     build_stylesheet,
     compute_gene_hits,
-    compute_go_enrichment,
     genes_not_in_network,
     get_network_universe,
-    load_edges,
     load_go_annotations,
     parse_gene_query,
 )
-from utils.styling import UCONN_GRAY, UCONN_LIGHT_BLUE, UCONN_NAVY
+from utils import pathway_networks
+from utils.styling import UCONN_GRAY, UCONN_LIGHT_BLUE, UCONN_NAVY, muted_text_style, page_title_style
 
 
 cyto.load_extra_layouts()
 
 PATHWAY_DIR = Path(__file__).resolve().parents[1] / "pathway"
-EDGES_CSV = PATHWAY_DIR / "edges_e.csv"
-NODES_CSV = PATHWAY_DIR / "nodes_e.csv"
 ANNOTATIONS_CSV = PATHWAY_DIR / "go_gene_annotations.csv"
 
 DIMMED_OPACITY = 0.25
 
-EDGES_DF = load_edges(EDGES_CSV)
-NODES_DF = build_node_table(EDGES_DF, NODES_CSV, require_nodes_csv=True)
 ANNOTATIONS = load_go_annotations(ANNOTATIONS_CSV)
-BASE_ELEMENTS = build_cytoscape_elements(EDGES_DF, NODES_DF)
+
+
+_NETWORK_CACHE: dict[str, dict] = {}
+
+
+def _versions() -> list[dict]:
+    return pathway_networks.list_versions()
+
+
+def _version_choices() -> list[dict]:
+    """Return the publication-facing network choices in display order."""
+    versions = {v["id"]: v for v in _versions()}
+    ordered = [
+        ("Baseline", "Baseline"),
+        ("Extended2", "Extended"),
+        ("Extended1", "Extended"),
+        ("CaseStudy6", "Case Study 6"),
+    ]
+    choices = []
+    used_labels = set()
+    for version_id, label in ordered:
+        if version_id in versions and label not in used_labels:
+            choices.append({"id": version_id, "label": label})
+            used_labels.add(label)
+    return choices
+
+
+def _default_version_id() -> str | None:
+    choices = _version_choices()
+    return choices[0]["id"] if choices else None
+
+
+def _default_visible_networks() -> list[str]:
+    return [choice["id"] for choice in _version_choices() if choice["label"] != "Case Study 6"]
+
+
+def _network(version_id: str | None = None) -> dict:
+    version_id = version_id or _default_version_id()
+    if version_id not in _NETWORK_CACHE:
+        _NETWORK_CACHE[version_id] = pathway_networks.load_version(version_id)
+    return _NETWORK_CACHE[version_id]
+
+
 BASE_STYLESHEET = build_stylesheet() + [
     {
         "selector": ".hit-node",
@@ -81,167 +112,35 @@ def _button_style(background_color=UCONN_NAVY):
     }
 
 
-def _extract_genes_from_upload(contents: str) -> tuple[set[str], str | None]:
-    if not contents:
-        return set(), None
-
-    try:
-        _, encoded = contents.split(",", 1)
-        decoded = base64.b64decode(encoded).decode("utf-8-sig")
-    except Exception as exc:
-        return set(), f"Could not read uploaded CSV: {exc}"
-
-    try:
-        df = pd.read_csv(io.StringIO(decoded))
-    except Exception as exc:
-        return set(), f"Could not parse uploaded CSV: {exc}"
-
-    if df.empty and not df.columns.empty:
-        raw_tokens = parse_gene_query(" ".join(str(col) for col in df.columns))
-        return raw_tokens, None
-
-    gene_column = None
-    preferred_names = {"gene", "genes", "gene_symbol", "genesymbol", "symbol"}
-    for column in df.columns:
-        normalized = re.sub(r"[^a-z0-9]", "", str(column).lower())
-        if normalized in preferred_names:
-            gene_column = column
-            break
-
-    if gene_column is None:
-        gene_column = df.columns[0]
-        genes = parse_gene_query(" ".join(df[gene_column].dropna().astype(str)))
-        first_header = str(gene_column).strip()
-        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", first_header):
-            genes |= parse_gene_query(first_header)
-        return genes, None
-
-    return parse_gene_query(" ".join(df[gene_column].dropna().astype(str))), None
-
-
-def _build_highlighted_elements(query_genes: set[str]) -> list[dict]:
-    hits = compute_gene_hits(query_genes, NODES_DF, ANNOTATIONS)
-    highlighted = []
-    for element in BASE_ELEMENTS:
-        data = element["data"]
-        if "source" in data:
-            highlighted.append(element)
-            continue
-        info = hits.get(data["id"], {"hit": False})
-        highlighted.append({**element, "classes": "hit-node" if info["hit"] else "dimmed-node"})
-    return highlighted
-
-
-def _build_summary(query_genes: set[str]) -> str:
-    hits = compute_gene_hits(query_genes, NODES_DF, ANNOTATIONS)
-    universe = get_network_universe(NODES_DF, ANNOTATIONS)
-    in_network = query_genes & universe
-    coverage = 100 * len(in_network) / len(query_genes) if query_genes else 0
-
-    lines = [
-        f"Query: {len(query_genes)} gene(s) -> {', '.join(sorted(query_genes))}",
-        f"Network coverage: {len(in_network)}/{len(query_genes)} query genes found in this network's {len(universe)}-gene universe ({coverage:.0f}%)",
-        "",
-    ]
-
-    hit_nodes = {node_id: info for node_id, info in hits.items() if info["hit"]}
-    if hit_nodes:
-        lines.append(f"{len(hit_nodes)} node(s) lit up:")
-        for node_id, info in hit_nodes.items():
-            if info["total_annotated"] is None:
-                lines.append(f"  {node_id}  (direct gene match)")
-            else:
-                matched = ", ".join(sorted(info["matched_genes"]))
-                lines.append(
-                    f"  {node_id}  ({len(info['matched_genes'])}/{info['total_annotated']} annotated genes hit: {matched})"
-                )
-    else:
-        lines.append("No nodes matched this query.")
-
-    not_found = genes_not_in_network(query_genes, NODES_DF, ANNOTATIONS)
-    if not_found:
-        lines.extend(["", f"Not found anywhere in the network: {', '.join(sorted(not_found))}"])
-
-    return "\n".join(lines)
-
-
-def page_layout(search=None):
-    initial_genes = _genes_from_search(search)
-    initial_gene_text = ", ".join(sorted(initial_genes)) if initial_genes else "TP63, IRF6, GRHL3, HDAC3, EZH2"
-
+def _network_panel(choice: dict, query_genes=None, layout_name=DEFAULT_LAYOUT, visible=True, remount_token=0) -> html.Div:
+    """Build one self-contained network panel for a version choice."""
+    version_id = choice["id"]
+    component_index = f"{version_id}:{remount_token}"
+    network = _network(version_id)
+    query_genes = set(query_genes or [])
+    elements = _build_highlighted_elements(query_genes, version_id) if query_genes else _unhighlighted_elements(network["elements"] if network else [])
+    layout = {
+        **LAYOUT_CONFIGS.get(layout_name, LAYOUT_CONFIGS[DEFAULT_LAYOUT]),
+        "fit": True,
+        "padding": 30,
+    }
     return html.Div(
         [
-            html.H2(
-                "Pathway",
-                style={"color": UCONN_NAVY, "marginBottom": "12px", "fontWeight": "bold"},
-            ),
-            html.Div(
-                [
-                    html.Div(
-                        [
-                            html.Label("Gene list", style={"fontWeight": "600", "color": UCONN_NAVY}),
-                            dcc.Textarea(
-                                id="pathway-gene-input",
-                                value=initial_gene_text,
-                                placeholder="TP63, IRF6, GRHL3, HDAC3, EZH2",
-                                style={"width": "100%", "height": "84px", "marginTop": "6px"},
-                            ),
-                        ],
-                        style={"flex": "1 1 440px"},
-                    ),
-                    html.Div(
-                        [
-                            html.Label("Upload CSV", style={"fontWeight": "600", "color": UCONN_NAVY}),
-                            dcc.Upload(
-                                id="pathway-gene-upload",
-                                children=html.Div(["Drag and drop or select a .csv"]),
-                                accept=".csv,text/csv",
-                                multiple=False,
-                                style={
-                                    "border": f"1px dashed {UCONN_LIGHT_BLUE}",
-                                    "padding": "18px",
-                                    "marginTop": "6px",
-                                    "textAlign": "center",
-                                    "backgroundColor": "#f8fbfd",
-                                },
-                            ),
-                            html.Div(id="pathway-upload-status", style={"fontSize": "13px", "marginTop": "8px"}),
-                        ],
-                        style={"flex": "1 1 320px"},
-                    ),
-                ],
-                style={"display": "flex", "gap": "18px", "flexWrap": "wrap", "marginBottom": "12px"},
-            ),
-            html.Div(
-                [
-                    html.Button("Analyze", id="pathway-highlight-button", n_clicks=0, style=_button_style()),
-                    html.Button(
-                        "Clear",
-                        id="pathway-clear-button",
-                        n_clicks=0,
-                        style={**_button_style(UCONN_GRAY), "marginLeft": "8px"},
-                    ),
-                    dcc.Dropdown(
-                        id="pathway-layout-dropdown",
-                        options=[{"label": name, "value": name} for name in LAYOUT_CONFIGS],
-                        value=DEFAULT_LAYOUT,
-                        clearable=False,
-                        style={"width": "220px", "display": "inline-block", "marginLeft": "16px", "verticalAlign": "middle"},
-                    ),
-                ],
-                style={"marginBottom": "12px"},
+            html.H3(
+                choice["label"],
+                style={"color": UCONN_NAVY, "fontWeight": "bold", "textAlign": "center", "marginBottom": "8px"},
             ),
             html.Div(
                 [
                     cyto.Cytoscape(
-                        id="pathway-network",
-                        elements=BASE_ELEMENTS,
+                        id={"type": "pathway-network", "index": component_index},
+                        elements=elements,
                         stylesheet=BASE_STYLESHEET,
-                        layout=LAYOUT_CONFIGS[DEFAULT_LAYOUT],
-                        style={"width": "100%", "height": "650px", "border": f"1px solid {UCONN_NAVY}"},
+                        layout=layout,
+                        style={"width": "100%", "height": "600px", "border": f"1px solid {UCONN_NAVY}"},
                     ),
                     html.Div(
-                        id="pathway-hover-info",
+                        id={"type": "pathway-hover-info", "index": component_index},
                         style={
                             "position": "absolute",
                             "top": "10px",
@@ -259,120 +158,293 @@ def page_layout(search=None):
                 ],
                 style={"position": "relative"},
             ),
-            html.Div(id="pathway-node-info", style={"marginTop": "10px", "fontFamily": "monospace"}),
+            html.Div(id={"type": "pathway-node-info", "index": component_index}, style={"marginTop": "10px", "fontFamily": "monospace"}),
             html.Div(
-                id="pathway-hit-summary",
+                id={"type": "pathway-hit-summary", "index": component_index},
                 style={"marginTop": "10px", "fontFamily": "monospace", "whiteSpace": "pre-wrap"},
             ),
-            html.H3("GO Term Enrichment", style={"color": UCONN_NAVY, "marginTop": "24px"}),
-            dash_table.DataTable(
-                id="pathway-enrichment-table",
-                columns=[
-                    {"name": "GO_ID", "id": "GO_ID"},
-                    {"name": "Label", "id": "Label"},
-                    {"name": "K", "id": "annotated_in_network (K)"},
-                    {"name": "k", "id": "hits (k)"},
-                    {"name": "n", "id": "query_in_network (n)"},
-                    {"name": "N", "id": "network_universe (N)"},
-                    {"name": "Odds ratio", "id": "odds_ratio"},
-                    {"name": "p-value", "id": "p_value"},
-                    {"name": "q-value", "id": "q_value"},
-                ],
-                data=[],
-                sort_action="native",
-                page_size=15,
-                style_cell={"fontFamily": "monospace", "fontSize": "12px", "padding": "5px", "textAlign": "left"},
-                style_header={"fontWeight": "bold", "backgroundColor": "#f1f5f9"},
-                style_table={"overflowX": "auto"},
-                style_data_conditional=[
-                    {
-                        "if": {"filter_query": "{q_value} < 0.05", "column_id": "q_value"},
-                        "color": HIT_COLOR,
-                        "fontWeight": "bold",
-                    }
-                ],
+        ],
+        id={"type": "pathway-panel", "index": component_index},
+        style={"flex": "1 1 460px", "minWidth": "420px", "display": "block" if visible else "none"},
+    )
+
+
+def _network_panels(versions, query_genes=None, layout_name=DEFAULT_LAYOUT, selected_versions=None, remount_token=0):
+    selected = set(selected_versions) if selected_versions is not None else set(_default_visible_networks())
+    return [
+        _network_panel(
+            choice,
+            query_genes=query_genes,
+            layout_name=layout_name,
+            visible=choice["id"] in selected,
+            remount_token=remount_token,
+        )
+        for choice in versions
+    ]
+
+
+def _unhighlighted_elements(elements: list[dict]) -> list[dict]:
+    """Return fresh Cytoscape elements with highlight/dim classes removed."""
+    return [{**element, "classes": ""} for element in elements]
+
+
+def _build_highlighted_elements(query_genes: set[str], version_id: str | None) -> list[dict]:
+    network = _network(version_id)
+    hits = compute_gene_hits(query_genes, network["nodes"], ANNOTATIONS)
+    highlighted = []
+    for element in network["elements"]:
+        data = element["data"]
+        if "source" in data:
+            highlighted.append(element)
+            continue
+        info = hits.get(data["id"], {"hit": False})
+        highlighted.append({**element, "classes": "hit-node" if info["hit"] else "dimmed-node"})
+    return highlighted
+
+
+def _build_summary(query_genes: set[str], version_id: str | None) -> str:
+    network = _network(version_id)
+    hits = compute_gene_hits(query_genes, network["nodes"], ANNOTATIONS)
+    universe = get_network_universe(network["nodes"], ANNOTATIONS)
+    in_network = query_genes & universe
+    coverage = 100 * len(in_network) / len(query_genes) if query_genes else 0
+    label = network["version"]["label"]
+
+    lines = [
+        f"Network: {label}",
+        f"Query: {len(query_genes)} gene(s) -> {', '.join(sorted(query_genes))}",
+        f"Network coverage: {len(in_network)}/{len(query_genes)} query genes found in this network's {len(universe)}-gene universe ({coverage:.0f}%)",
+        "",
+    ]
+
+    hit_nodes = {node_id: info for node_id, info in hits.items() if info["hit"]}
+    if hit_nodes:
+        lines.append(f"{len(hit_nodes)} matching node(s):")
+        for node_id, info in hit_nodes.items():
+            if info["total_annotated"] is None:
+                lines.append(f"  {node_id}  (direct gene match)")
+            else:
+                matched = ", ".join(sorted(info["matched_genes"]))
+                lines.append(
+                    f"  {node_id}  ({len(info['matched_genes'])}/{info['total_annotated']} annotated genes hit: {matched})"
+                )
+    else:
+        lines.append("No nodes matched this query.")
+
+    not_found = genes_not_in_network(query_genes, network["nodes"], ANNOTATIONS)
+    if not_found:
+        lines.extend(["", f"Not found anywhere in the network: {', '.join(sorted(not_found))}"])
+
+    return "\n".join(lines)
+
+
+def page_layout(search=None):
+    initial_genes = _genes_from_search(search)
+    initial_gene_text = ", ".join(sorted(initial_genes)) if initial_genes else "TP63, IRF6, GRHL3, HDAC3, EZH2"
+    versions = _version_choices()
+
+    return html.Div(
+        [
+            html.H2("Pathway", style=page_title_style),
+            html.P(
+                "Compare queried genes against curated baseline and extended palatogenesis network models. Highlighting shows direct gene matches and ontology/pathway terms annotated to the submitted gene set.",
+                style=muted_text_style,
             ),
-            dcc.Store(id="pathway-upload-genes-store", data=[]),
+            html.Div(
+                [
+                    html.Label("Gene list", style={"fontWeight": "600", "color": UCONN_NAVY}),
+                    dcc.Textarea(
+                        id="pathway-gene-input",
+                        value=initial_gene_text,
+                        style={"width": "100%", "height": "80px", "marginTop": "6px"},
+                    ),
+                ],
+                style={"marginBottom": "12px"},
+            ),
+            html.Div(
+                [
+                    html.Button("Highlight genes", id="pathway-highlight-button", n_clicks=0, style=_button_style()),
+                    html.Button(
+                        "Clear",
+                        id="pathway-clear-button",
+                        n_clicks=0,
+                        style={**_button_style(UCONN_GRAY), "marginLeft": "8px"},
+                    ),
+                    html.Button(
+                        "Reset view",
+                        id="pathway-reset-view-button",
+                        n_clicks=0,
+                        style={**_button_style(UCONN_LIGHT_BLUE), "marginLeft": "8px", "color": UCONN_NAVY},
+                    ),
+                    html.Span(
+                        "Layout",
+                        style={"fontWeight": "600", "color": UCONN_NAVY, "marginLeft": "16px", "marginRight": "8px"},
+                    ),
+                    dcc.Dropdown(
+                        id="pathway-layout-dropdown",
+                        options=[{"label": name, "value": name} for name in LAYOUT_CONFIGS],
+                        value=DEFAULT_LAYOUT,
+                        clearable=False,
+                        style={"width": "220px", "display": "inline-block", "verticalAlign": "middle"},
+                    ),
+                    html.Span(
+                        "Network",
+                        style={"fontWeight": "600", "color": UCONN_NAVY, "marginLeft": "16px", "marginRight": "8px"},
+                    ),
+                    dcc.Checklist(
+                        id="pathway-network-display",
+                        options=[{"label": choice["label"], "value": choice["id"]} for choice in versions],
+                        value=_default_visible_networks(),
+                        inline=True,
+                        labelStyle={"marginRight": "12px", "cursor": "pointer"},
+                        inputStyle={"marginRight": "5px"},
+                    ),
+                ],
+                style={"display": "flex", "alignItems": "center", "marginBottom": "14px", "flexWrap": "wrap", "gap": "6px"},
+            ),
+            html.Div(
+                _network_panels(versions),
+                id="pathway-network-panels",
+                style={"display": "flex", "gap": "18px", "flexWrap": "wrap", "alignItems": "flex-start"},
+            ),
             dcc.Store(id="pathway-query-genes-store", data=[]),
+            dcc.Store(id="pathway-remount-token", data=0),
         ],
         style={"padding": "20px"},
     )
 
 
-@callback(Output("pathway-network", "layout"), Input("pathway-layout-dropdown", "value"))
+@callback(Output({"type": "pathway-network", "index": ALL}, "layout"), Input("pathway-layout-dropdown", "value"))
 def update_pathway_layout(layout_name):
-    return LAYOUT_CONFIGS.get(layout_name, LAYOUT_CONFIGS[DEFAULT_LAYOUT])
+    cfg = {
+        **LAYOUT_CONFIGS.get(layout_name, LAYOUT_CONFIGS[DEFAULT_LAYOUT]),
+        "fit": True,
+        "padding": 30,
+        "animate": True,
+    }
+    return [cfg for _ in _version_choices()]
 
 
 @callback(
-    Output("pathway-upload-genes-store", "data"),
-    Output("pathway-upload-status", "children"),
-    Input("pathway-gene-upload", "contents"),
-    State("pathway-gene-upload", "filename"),
+    Output("pathway-network-panels", "children"),
+    Output("pathway-query-genes-store", "data", allow_duplicate=True),
+    Output("pathway-remount-token", "data"),
+    Input("pathway-reset-view-button", "n_clicks"),
+    Input("pathway-clear-button", "n_clicks"),
+    State("pathway-query-genes-store", "data"),
+    State("pathway-remount-token", "data"),
+    State("pathway-layout-dropdown", "value"),
+    State("pathway-network-display", "value"),
     prevent_initial_call=True,
 )
-def parse_uploaded_gene_csv(contents, filename):
-    genes, error = _extract_genes_from_upload(contents)
-    if error:
-        return [], html.Span(error, style={"color": "#b91c1c"})
-    if not genes:
-        return [], html.Span("No gene symbols found in uploaded CSV.", style={"color": "#b91c1c"})
-    return sorted(genes), html.Span(f"Loaded {len(genes)} gene(s) from {filename}.", style={"color": UCONN_NAVY})
+def reset_pathway_network_panels(reset_clicks, clear_clicks, current_query_genes, current_remount_token, layout_name, selected_versions):
+    if not reset_clicks and not clear_clicks:
+        return no_update, no_update, no_update
+    is_clear = dash.ctx.triggered_id == "pathway-clear-button"
+    query_genes = set() if is_clear else set(current_query_genes or [])
+    remount_token = int(current_remount_token or 0) + 1
+    panels = _network_panels(
+        _version_choices(),
+        query_genes=query_genes,
+        layout_name=layout_name or DEFAULT_LAYOUT,
+        selected_versions=selected_versions,
+        remount_token=remount_token,
+    )
+    return panels, [] if is_clear else no_update, remount_token
 
 
-@callback(Output("pathway-node-info", "children"), Input("pathway-network", "tapNodeData"))
-def show_pathway_node_info(node_data):
-    if not node_data:
-        return "Click a node to see its details."
-    parts = [
-        f"ID: {node_data.get('id')}",
-        f"Label: {node_data.get('label')}",
-        f"Type: {node_data.get('type')}",
-    ]
-    if node_data.get("GO_Aspect") and node_data.get("GO_Aspect") != "N/A":
-        parts.append(f"GO_Aspect: {node_data.get('GO_Aspect')}")
-    return " | ".join(parts)
+@callback(Output({"type": "pathway-panel", "index": ALL}, "style"), Input("pathway-network-display", "value"))
+def update_pathway_panel_display(selected_versions):
+    selected = set(selected_versions or [])
+    styles = []
+    for choice in _version_choices():
+        visible = choice["id"] in selected
+        styles.append({"flex": "1 1 460px", "minWidth": "420px", "display": "block" if visible else "none"})
+    return styles
+
+
+@callback(Output({"type": "pathway-node-info", "index": ALL}, "children"), Input({"type": "pathway-network", "index": ALL}, "tapNodeData"))
+def show_pathway_node_info(node_datas):
+    if not node_datas:
+        return [no_update] * len(_version_choices())
+    results = []
+    for node_data in node_datas or []:
+        if not node_data:
+            results.append("Click a node to see its details.")
+            continue
+        parts = [
+            f"ID: {node_data.get('id')}",
+            f"Label: {node_data.get('label')}",
+            f"Type: {node_data.get('type')}",
+        ]
+        if node_data.get("GO_Aspect") and node_data.get("GO_Aspect") != "N/A":
+            parts.append(f"GO_Aspect: {node_data.get('GO_Aspect')}")
+        results.append(" | ".join(parts))
+    return results
 
 
 @callback(
-    Output("pathway-network", "elements"),
-    Output("pathway-hit-summary", "children"),
+    Output({"type": "pathway-network", "index": ALL}, "elements"),
+    Output({"type": "pathway-hit-summary", "index": ALL}, "children"),
     Output("pathway-query-genes-store", "data"),
-    Output("pathway-enrichment-table", "data"),
     Input("pathway-highlight-button", "n_clicks"),
-    Input("pathway-clear-button", "n_clicks"),
     Input("url", "search"),
     State("pathway-gene-input", "value"),
-    State("pathway-upload-genes-store", "data"),
     prevent_initial_call=False,
 )
-def highlight_pathway_gene_hits(_highlight_clicks, _clear_clicks, search, query_text, uploaded_genes):
-    if dash.ctx.triggered_id == "pathway-clear-button":
-        return BASE_ELEMENTS, "Highlight cleared.", [], []
+def highlight_pathway_gene_hits(
+    _highlight_clicks,
+    search,
+    query_text,
+):
+    choices = _version_choices()
+    base_elements = [_unhighlighted_elements(_network(c["id"])["elements"]) for c in choices]
+    triggered_id = dash.ctx.triggered_id
 
     url_genes = _genes_from_search(search)
-    if not _highlight_clicks and not url_genes:
-        return no_update, no_update, no_update, no_update
+    if triggered_id is None:
+        if not url_genes:
+            return [no_update] * len(choices), [no_update] * len(choices), no_update
+        triggered_id = "url"
 
-    query_genes = (url_genes or parse_gene_query(query_text)) | set(uploaded_genes or [])
+    if triggered_id == "url" and not url_genes:
+        return [no_update] * len(choices), [no_update] * len(choices), no_update
+
+    if triggered_id not in {"pathway-highlight-button", "url"}:
+        return [no_update] * len(choices), [no_update] * len(choices), no_update
+
+    query_genes = url_genes if triggered_id == "url" else parse_gene_query(query_text)
+
+    if not _highlight_clicks and triggered_id != "url":
+        return [no_update] * len(choices), [no_update] * len(choices), no_update
+
     if not query_genes:
-        return BASE_ELEMENTS, "Enter gene names or upload a CSV containing gene symbols.", [], []
+        msg = "Enter gene names to highlight them in the pathway networks."
+        return base_elements, [msg] * len(choices), []
 
-    enrichment_df = compute_go_enrichment(query_genes, NODES_DF, ANNOTATIONS)
     return (
-        _build_highlighted_elements(query_genes),
-        _build_summary(query_genes),
+        [_build_highlighted_elements(query_genes, c["id"]) for c in choices],
+        [_build_summary(query_genes, c["id"]) for c in choices],
         sorted(query_genes),
-        enrichment_df.to_dict("records"),
     )
 
 
 @callback(
-    Output("pathway-hover-info", "children"),
-    Input("pathway-network", "mouseoverNodeData"),
+    Output({"type": "pathway-hover-info", "index": ALL}, "children"),
+    Input({"type": "pathway-network", "index": ALL}, "mouseoverNodeData"),
     State("pathway-query-genes-store", "data"),
 )
-def show_pathway_hover_tooltip(node_data, current_query):
+def show_pathway_hover_tooltip(node_datas, current_query):
+    if not node_datas:
+        return [""] * len(_version_choices())
+
+    results = []
+    for node_data in node_datas or []:
+        results.append(_hover_content(node_data, current_query))
+    return results
+
+
+def _hover_content(node_data, current_query):
     if not node_data:
         return ""
 

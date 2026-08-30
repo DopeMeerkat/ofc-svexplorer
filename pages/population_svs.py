@@ -8,13 +8,80 @@ from dash import html, dcc, callback, Input, Output
 import dash_bio as dashbio
 import sqlite3
 import json
+from urllib.parse import parse_qs
 
 from app import app, HOSTED_GENOME_DICT, build_local_igv_reference
 from components.population_gene_search import create_population_gene_search
-from utils.styling import uconn_styles, UCONN_NAVY, UCONN_LIGHT_BLUE
-from utils.database import get_tracks_for_genome, get_exon_track_for_genome, DB_PATH, get_sample_counts
+from utils.styling import control_label_style, muted_text_style, page_title_style, uconn_styles, UCONN_NAVY, UCONN_LIGHT_BLUE
+from utils.database import get_tracks_for_genome, get_exon_track_for_genome, DB_PATH, get_sample_counts, get_gene_by_id, normalize_sv_table
 
-def page_layout(selected_gene=None):
+
+OFC_RELEVANT_ENHANCER_CELLS = ('MESENCHYMAL', 'NEURALCREST')
+ENHANCER_CANDIDATE_TABLES = {'active_enhancer_candidates'}
+NOCCl_WINDOW_BUFFER = 80000
+
+def _get_sv_by_id(sv_id):
+    """Look up a structural variant locus from phenotype_svs only."""
+    if not sv_id:
+        return None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, type, chrom, MIN(start) AS start, MAX("end") AS end FROM phenotype_svs WHERE id = ? GROUP BY id, type, chrom',
+            (sv_id,),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return None
+        return {
+            'id': row['id'],
+            'Gene': row['id'],
+            'type': 'sv',
+            'sv_type': row['type'],
+            'chrom': row['chrom'],
+            'x1': row['start'],
+            'x2': row['end'],
+        }
+    except Exception as e:
+        print(f"Error loading SV locus: {e}")
+        return None
+
+
+def _selected_item_from_search(search):
+    query = parse_qs((search or '').lstrip('?'))
+    gene = (query.get('gene') or [''])[0].strip()
+    if gene:
+        gene_dict = get_gene_by_id(gene)
+        if gene_dict:
+            return {**gene_dict, 'Gene': gene_dict.get('id')}
+
+    sv_id = (query.get('sv') or [''])[0].strip()
+    if sv_id:
+        return _get_sv_by_id(sv_id)
+
+    chrom = (query.get('chrom') or [''])[0].strip()
+    start = (query.get('start') or [''])[0].strip()
+    end = (query.get('end') or [''])[0].strip()
+    if chrom and start and end:
+        try:
+            return {
+                'id': f'{chrom}:{start}-{end}',
+                'Gene': f'{chrom}:{start}-{end}',
+                'type': 'locus',
+                'chrom': chrom,
+                'x1': int(start),
+                'x2': int(end),
+            }
+        except ValueError:
+            pass
+
+    return None
+
+
+def page_layout(selected_gene=None, search=None):
     """
     Create the population structural variations browser page layout
 
@@ -28,29 +95,32 @@ def page_layout(selected_gene=None):
     dropdown_options = [{'label': 'Select a chromosome...', 'value': ''}] + HOSTED_GENOME_DICT
     chrom = ''
     locus = ''
+    selected_gene = _selected_item_from_search(search) or selected_gene
     if selected_gene:
         # selected_gene is a dict with keys matching the gene table columns
         chrom = selected_gene.get('chrom', '')
         x1 = selected_gene.get('x1', '')
         x2 = selected_gene.get('x2', '')
         if chrom and x1 and x2:
-            print(f"Setting locus to: {chrom}:{x1}-{x2}")
+            print(f"Setting initial locus to: {chrom}:{x1}-{x2}")
             locus = f"{chrom}:{x1}-{x2}"
 
     return html.Div([
         html.Div([
-            html.H2('Population Structural Variations Browser', style={'color': UCONN_NAVY, 'marginBottom': '15px'}),
-            html.P('Explore combined structural variations across the population. View aggregated data for mothers, fathers, children, and background reference variations.',
-                  style={'fontSize': '16px', 'lineHeight': '1.5'})
+            html.H2('IGV / Population SV Browser', style=page_title_style),
+            html.P(
+                'Review cohort-level SV calls and regulatory annotation tracks in an IGV genome browser. Tracks are aggregated by source and do not display sample identifiers.',
+                style=muted_text_style,
+            ),
         ], style={'marginBottom': '30px'}),
 
         # Gene search component
-        create_population_gene_search(),
+        create_population_gene_search(initial_gene=selected_gene),
 
         html.Div([
             html.Div([
-                html.H3('Select Chromosome', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
-                html.P('Choose the chromosome you would like to display:', style={'marginBottom': '10px'}),
+                html.H3('Chromosome', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
+                html.P('Select a chromosome or use gene/SV search to jump to a locus.', style={'marginBottom': '10px'}),
                 dcc.Dropdown(
                     id='pop-igv-genome-select',
                     options=dropdown_options,
@@ -62,18 +132,40 @@ def page_layout(selected_gene=None):
                 # Track information with sample counts - updated dynamically
                 html.Div(id='track-info-container', style={'marginBottom': '20px'}),
 
-                html.H3('Optional Annotation Tracks', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
-                html.P('Select additional tracks to display:', style={'marginBottom': '10px'}),
+                html.H3('SV Dataset', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
+                html.P('Select the SV call set displayed in the cohort tracks.', style={'marginBottom': '10px'}),
+                dcc.Dropdown(
+                    id='pop-sv-source',
+                    options=[
+                        {'label': 'Filtered SVs', 'value': 'filtered_svs'},
+                        {'label': 'All SVs', 'value': 'phenotype_svs'},
+                    ],
+                    value='filtered_svs',
+                    style={'marginBottom': '20px'}
+                ),
+                html.P('Flanking window around selected SVs (bp):', style={**control_label_style, 'marginBottom': '8px'}),
+                dcc.Input(
+                    id='pop-viewport-buffer',
+                    type='number',
+                    min=0,
+                    step=500,
+                    value=1000,
+                    style={'width': '100%', 'marginBottom': '20px'}
+                ),
+
+                html.H3('Annotation Tracks', style={'color': UCONN_NAVY, 'marginBottom': '10px', 'fontSize': '18px'}),
+                html.P('Add regulatory and gene-model tracks to the IGV view.', style={'marginBottom': '10px'}),
                 dcc.Checklist(
                     id='pop-optional-tracks',
                     options=[
                         {'label': 'Exons', 'value': 'exons'},
-                        {'label': 'Poised enhancer candidates', 'value': 'poised_enhancer_candidates'},
+                        # {'label': 'Poised enhancer candidates', 'value': 'poised_enhancer_candidates'},
                         {'label': 'Active enhancer candidates', 'value': 'active_enhancer_candidates'},
                         {'label': 'Promoter candidates', 'value': 'promoter_candidates'},
                         {'label': 'Insulator candidates', 'value': 'insulator_candidates'},
+                        {'label': 'No-cleft embryo cCREs', 'value': 'noccl_cCREs'},
                     ],
-                    value=['exons'],
+                    value=['exons', 'active_enhancer_candidates', 'noccl_cCREs'],
                     style={'marginBottom': '20px'}
                 ),
             ], style={'width': '30%', 'display': 'inline-block', 'verticalAlign': 'top', 'padding': '0 20px 0 0'}),
@@ -94,15 +186,20 @@ def page_layout(selected_gene=None):
     Output('pop-igv-browser-container', 'children'),
     [Input('pop-igv-genome-select', 'value'),
      Input('pop-selected-gene-store', 'data'),
-     Input('pop-optional-tracks', 'value')]
+     Input('pop-optional-tracks', 'value'),
+     Input('pop-sv-source', 'value'),
+     Input('pop-viewport-buffer', 'value')]
 )
-def update_population_igv_browser(chrom, selected_gene, optional_tracks):
+def update_population_igv_browser(chrom, selected_gene, optional_tracks, sv_source, viewport_buffer):
     """
     Update the IGV browser with population SV data
 
     Args:
         chrom (str): Selected chromosome
         selected_gene (dict): Selected gene information
+        optional_tracks (list): Selected optional annotation tracks
+        sv_source (str): SV source table (filtered_svs or phenotype_svs)
+        viewport_buffer (int): Buffer (bp) loaded around a searched SV
 
     Returns:
         dashbio.Igv: Updated IGV browser component
@@ -110,6 +207,8 @@ def update_population_igv_browser(chrom, selected_gene, optional_tracks):
     print(f"\n=== UPDATE POPULATION IGV BROWSER ===")
     print(f"Chromosome: {chrom}")
     print(f"Selected gene: {selected_gene}")
+    print(f"SV source: {sv_source}")
+    print(f"Viewport buffer (bp): {viewport_buffer}")
 
     if not chrom and not (selected_gene and selected_gene.get('chrom')):
         return html.P("Please select a chromosome to view the genome browser.")
@@ -120,7 +219,7 @@ def update_population_igv_browser(chrom, selected_gene, optional_tracks):
         print(f"Using chromosome from selected gene: {chrom}")
 
     try:
-        # Determine locus first so annotations can be kept to the visible gene window.
+        # Determine the IGV viewport. Population optional tracks remain chromosome-wide.
         locus = chrom
         x1_padded = None
         x2_padded = None
@@ -128,9 +227,16 @@ def update_population_igv_browser(chrom, selected_gene, optional_tracks):
             x1 = selected_gene.get('x1', '')
             x2 = selected_gene.get('x2', '')
             if x1 and x2:
+                item_type = selected_gene.get('type')
+                if item_type == 'sv':
+                    buffer_bp = max(0, int(viewport_buffer or 1000))
+                elif item_type == 'locus':
+                    buffer_bp = 0
+                else:
+                    buffer_bp = 5000
                 print(f"Setting locus to: {chrom}:{x1}-{x2}")
-                x1_padded = max(0, int(x1) - 5000)
-                x2_padded = int(x2) + 5000
+                x1_padded = max(0, int(x1) - buffer_bp)
+                x2_padded = int(x2) + buffer_bp
                 locus = f"{chrom}:{x1_padded}-{x2_padded}"
                 print(f"Padded locus: {locus}")
 
@@ -138,27 +244,37 @@ def update_population_igv_browser(chrom, selected_gene, optional_tracks):
         reference_tracks = get_tracks_for_genome(chrom)
 
         # Population SV tracks
-        population_tracks = create_population_tracks(chrom)
+        sv_source = normalize_sv_table(sv_source)
+        population_tracks = create_population_tracks(chrom, sv_source)
 
-        # Optional annotation tracks based on checklist
+        # Optional annotation tracks based on checklist. Unlike Family SVs, Population
+        # loads selected annotation tracks for the entire selected chromosome.
         optional_tracks_list = []
         if optional_tracks:
-            if 'exons' in optional_tracks and x1_padded is not None:
-                exon_tracks = get_exon_track_for_genome(chrom, start=x1_padded, end=x2_padded)
+            if 'exons' in optional_tracks:
+                exon_tracks = get_exon_track_for_genome(chrom)
                 optional_tracks_list.extend(exon_tracks)
             candidate_configs = [
-                ('poised_enhancer_candidates', 'Poised Enhancer Candidates', '#FF6B6B'),
+                # ('poised_enhancer_candidates', 'Poised Enhancer Candidates', '#FF6B6B'),
                 ('active_enhancer_candidates', 'Active Enhancer Candidates', '#4ECDC4'),
                 ('promoter_candidates', 'Promoter Candidates', '#45B7D1'),
                 ('insulator_candidates', 'Insulator Candidates', '#96CEB4'),
             ]
             for table_name, display_name, color in candidate_configs:
                 if table_name in optional_tracks:
-                    track = create_candidate_region_track(
-                        chrom, table_name, display_name, color,
-                        start=x1_padded, end=x2_padded,
-                    )
+                    track = create_candidate_region_track(chrom, table_name, display_name, color)
                     optional_tracks_list.append(track)
+            if 'noccl_cCREs' in optional_tracks:
+                # Load a generous window around the searched gene/SV instead of the
+                # entire chromosome, so dense chromosomes are not truncated by the
+                # per-track feature cap. Falls back to the whole chromosome when no
+                # locus has been searched.
+                noccl_start = None
+                noccl_end = None
+                if selected_gene and selected_gene.get('chrom', '') == chrom and selected_gene.get('x1') and selected_gene.get('x2'):
+                    noccl_start = max(0, int(selected_gene['x1']) - NOCCl_WINDOW_BUFFER)
+                    noccl_end = int(selected_gene['x2']) + NOCCl_WINDOW_BUFFER
+                optional_tracks_list.append(create_noccl_ccre_track(chrom, start=noccl_start, end=noccl_end))
 
         # Combine all tracks
         all_tracks = reference_tracks + optional_tracks_list + population_tracks
@@ -204,25 +320,36 @@ def update_chromosome_from_gene(selected_gene):
 
     return chrom
 
-def create_population_tracks(chrom):
+def create_population_tracks(chrom, sv_table='filtered_svs'):
     """
     Create aggregated tracks for population SVs
 
     Args:
         chrom (str): The chromosome to create tracks for
+        sv_table (str): SV source table (filtered_svs or phenotype_svs)
 
     Returns:
         list: List of track objects for the IGV browser
     """
+    sv_table = normalize_sv_table(sv_table)
     # Create separate tracks for mothers, fathers, children, and background
-    mother_track = create_parent_track(chrom, 'F', 'Mothers (Combined)')
-    father_track = create_parent_track(chrom, 'M', 'Fathers (Combined)')
-    child_track = create_child_track(chrom)
+    mother_track = create_parent_track(chrom, 'F', 'Mothers (Combined)', sv_table)
+    father_track = create_parent_track(chrom, 'M', 'Fathers (Combined)', sv_table)
+    child_track = create_child_track(chrom, sv_table)
     background_track = create_background_track(chrom)
 
     return [mother_track, father_track, child_track, background_track]
 
-def create_parent_track(chrom, gender, name):
+
+def _format_frequency(freq, count, denominator):
+    """Format a precomputed SV frequency for IGV tooltips."""
+    try:
+        freq_value = float(freq or 0)
+    except (TypeError, ValueError):
+        freq_value = 0.0
+    return f"Frequency: {freq_value:.2%}"
+
+def create_parent_track(chrom, gender, name, sv_table='filtered_svs'):
     """
     Create track with SVs from all parents of specified gender
 
@@ -230,19 +357,22 @@ def create_parent_track(chrom, gender, name):
         chrom (str): The chromosome to filter by
         gender (str): Parent gender ('M' or 'F')
         name (str): Track name
+        sv_table (str): SV source table (filtered_svs or phenotype_svs)
 
     Returns:
         dict: Track object for IGV browser
     """
+    sv_table = normalize_sv_table(sv_table)
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
         # Query to get SVs from all parents of the specified gender on the given chromosome
-        cursor.execute("""
-            SELECT ps.sample, ps.id, ps.type, ps.chrom, ps.start, ps."end", ps.length
-            FROM phenotype_svs ps
+        cursor.execute(f"""
+            SELECT ps.sample, ps.id, ps.type, ps.chrom, ps.start, ps."end", ps.length,
+                   ps.count_mother, ps.freq_mother, ps.count_father, ps.freq_father
+            FROM {sv_table} ps
             JOIN phenotype p ON ps.sample = p.bam_id
             WHERE ps.chrom = ? AND p.gender = ? AND p.child = 0
             ORDER BY ps.start
@@ -262,7 +392,11 @@ def create_parent_track(chrom, gender, name):
                     'chr': row['chrom'],
                     'start': row['start'],
                     'end': row['end'],
-                    'type': row['type']
+                    'type': row['type'],
+                    'count_mother': row['count_mother'],
+                    'freq_mother': row['freq_mother'],
+                    'count_father': row['count_father'],
+                    'freq_father': row['freq_father'],
                 }
 
             # Increment count
@@ -273,14 +407,19 @@ def create_parent_track(chrom, gender, name):
 
         # Create track features with count information
         features = []
+        role = 'mother' if gender == 'F' else 'father'
+        count_col = f'count_{role}'
+        freq_col = f'freq_{role}'
+        sample_counts = get_sample_counts()
         for sv_id, count in sv_counts.items():
             details = sv_details[sv_id]
+            frequency_text = _format_frequency(details.get(freq_col), details.get(count_col), sample_counts.get(role))
             feature = {
                 'chr': details['chr'],
                 'start': details['start'],
                 'end': details['end'],
                 'name': sv_id,
-                'description': f"Type: {details['type']}<br>Count: {count}<br>Size: {details['end'] - details['start']} bp",
+                'description': f"Type: {details['type']}<br>{frequency_text}<br>Size: {details['end'] - details['start']} bp",
                 'type': details['type']
             }
             features.append(feature)
@@ -315,26 +454,28 @@ def create_parent_track(chrom, gender, name):
             'height': 100
         }
 
-def create_child_track(chrom):
+def create_child_track(chrom, sv_table='filtered_svs'):
     """
     Create track with SVs from all children
 
     Args:
         chrom (str): The chromosome to filter by
+        sv_table (str): SV source table (filtered_svs or phenotype_svs)
 
     Returns:
         dict: Track object for IGV browser
     """
+    sv_table = normalize_sv_table(sv_table)
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
         # Query to get SVs from all children on the given chromosome
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT ps.sample, ps.id, ps.type, ps.chrom, ps.start, ps."end", ps.length,
-                   p.affected, p.proband
-            FROM phenotype_svs ps
+                   ps.count_child, ps.freq_child, p.affected, p.proband
+            FROM {sv_table} ps
             JOIN phenotype p ON ps.sample = p.bam_id
             WHERE ps.chrom = ? AND p.child = 1
             ORDER BY ps.start
@@ -355,7 +496,9 @@ def create_child_track(chrom):
                     'chr': row['chrom'],
                     'start': row['start'],
                     'end': row['end'],
-                    'type': row['type']
+                    'type': row['type'],
+                    'count_child': row['count_child'],
+                    'freq_child': row['freq_child'],
                 }
 
             # Track status information
@@ -379,6 +522,7 @@ def create_child_track(chrom):
 
         # Create track features with count information
         features = []
+        sample_counts = get_sample_counts()
         for sv_id, count in sv_counts.items():
             details = sv_details[sv_id]
 
@@ -391,7 +535,7 @@ def create_child_track(chrom):
                 'start': details['start'],
                 'end': details['end'],
                 'name': sv_id,
-                'description': f"Type: {details['type']}<br>{status_str}Count: {count}<br>Size: {details['end'] - details['start']} bp",
+                'description': f"Type: {details['type']}<br>{status_str}{_format_frequency(details.get('freq_child'), details.get('count_child'), sample_counts.get('child'))}<br>Size: {details['end'] - details['start']} bp",
                 'type': details['type']
             }
             features.append(feature)
@@ -441,7 +585,7 @@ def create_background_track(chrom):
 
         # Query to get background SVs on the given chromosome
         cursor.execute("""
-            SELECT id, type, chrom, start, "end", length, freq, pheno, gender, pop_code, superpop_code
+            SELECT id, type, chrom, start, "end", length, freq, count_background, freq_background, pheno, gender, pop_code, superpop_code
             FROM background_svs
             WHERE chrom = ?
             ORDER BY start
@@ -462,7 +606,9 @@ def create_background_track(chrom):
                     'chr': row['chrom'],
                     'start': row['start'],
                     'end': row['end'],
-                    'type': row['type']
+                    'type': row['type'],
+                    'count_background': row['count_background'],
+                    'freq_background': row['freq_background'],
                 }
 
             # Collect population information
@@ -471,8 +617,6 @@ def create_background_track(chrom):
                 pop_info.append(f"Pop: {row['pop_code']}")
             if row['superpop_code']:
                 pop_info.append(f"SuperPop: {row['superpop_code']}")
-            if row['freq']:
-                pop_info.append(f"Freq: {row['freq']}")
 
             if pop_info:
                 if sv_id not in sv_pop_info:
@@ -529,8 +673,6 @@ def create_background_track(chrom):
                                 'regulatory_types': set(filter(None, group['regulatory_type'].unique() if 'regulatory_type' in group else [])),
                                 'regulatory_cell_types': set(filter(None, group['regulatory_cell_type'].unique() if 'regulatory_cell_type' in group else [])),
                                 'expected_value': float(first_row.get('expected_value', 0)),
-                                # Additional detailed information
-                                'samples': first_row.get('samples', ""),
                                 'regulatory_scores': {},
                                 'regulatory_ids': set(filter(None, group['regulatory_id'].unique() if 'regulatory_id' in group else [])),
                                 'regulatory_details': []
@@ -605,6 +747,7 @@ def create_background_track(chrom):
                             sv_additional_info = transformed_mapping
                             break
 
+        sample_counts = get_sample_counts()
         for sv_id, count in sv_counts.items():
             details = sv_details[sv_id]
 
@@ -628,8 +771,6 @@ def create_background_track(chrom):
                     additional_info += f"Expected value: {info['expected_value']:.3f}<br>"
                 if 'frequency' in info:
                     additional_info += f"Frequency: {info['frequency']:.6f}<br>"
-                if 'sample_count' in info and info['sample_count'] > 0:
-                    additional_info += f"Sample count: {info['sample_count']}<br>"
 
                 # Add regulatory information (wrap long lists with line breaks)
                 if info['regulatory_types']:
@@ -644,17 +785,6 @@ def create_background_track(chrom):
                     for cell_type, score in info['regulatory_scores'].items():
                         if cell_type:  # Ensure cell type is not empty
                             additional_info += f"- {cell_type}: {score:.3f}<br>"
-
-                # Add sample information
-                if info.get('samples'):
-                    sample_list = info['samples'].split(',')
-                    sample_list = [s.strip() for s in sample_list if s.strip()]  # Clean up empty entries
-                    if sample_list:
-                        if len(sample_list) <= 5:
-                            additional_info += f"<br><b>Samples:</b> {', '.join(sample_list)}<br>"
-                        else:
-                            # Show first 5 samples and count
-                            additional_info += f"<br><b>Samples:</b> {', '.join(sample_list[:5])}... (+{len(sample_list)-5} more)<br>"
 
                 # Add detailed regulatory information for specialists
                 if info.get('regulatory_details') and len(info['regulatory_details']) > 0:
@@ -687,7 +817,7 @@ def create_background_track(chrom):
             # Create the description (simple flat format like the children track)
             description = f"Type: {details['type']}<br>"
             description += f"Size: {details['end'] - details['start']} bp<br>"
-            description += f"Count: {count}<br>"
+            description += f"{_format_frequency(details.get('freq_background'), details.get('count_background'), sample_counts.get('background'))}<br>"
 
             # Add population information if available
             if pop_str:
@@ -756,6 +886,10 @@ def create_candidate_region_track(chrom, table_name, display_name, color, start=
         if start is not None and end is not None:
             where_extra = "AND start <= ? AND end >= ?"
             params.extend([int(end), int(start)])
+        if table_name in ENHANCER_CANDIDATE_TABLES:
+            placeholders = ', '.join(['?'] * len(OFC_RELEVANT_ENHANCER_CELLS))
+            where_extra = f"{where_extra} AND cell IN ({placeholders})"
+            params.extend(OFC_RELEVANT_ENHANCER_CELLS)
 
         cursor.execute(f"""
             SELECT cell, chrom, start, "end", length, score, gene, {peak_col} AS peak_value
@@ -808,6 +942,95 @@ def create_candidate_region_track(chrom, table_name, display_name, color, start=
             'color': color,
             'height': 50,
         }
+
+
+def create_noccl_ccre_track(chrom, start=None, end=None, max_features=10000):
+    """Create an IGV annotation track from imported no-cleft embryo cCRE BED rows."""
+    display_name = 'No-cleft Embryo cCREs'
+    color = '#7C3AED'
+
+    def format_targets(targets, per_line=2):
+        values = [value.strip() for value in str(targets or '').split(',') if value.strip()]
+        if not values:
+            return 'N/A'
+        lines = [', '.join(values[index:index + per_line]) for index in range(0, len(values), per_line)]
+        return '<br>'.join(lines)
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'noccl_cCREs'")
+        if not cursor.fetchone():
+            conn.close()
+            return {
+                'name': f'{display_name} (not imported)',
+                'sourceType': 'annotation',
+                'format': 'bed',
+                'features': [],
+                'displayMode': 'SQUISHED',
+                'color': color,
+                'height': 50,
+            }
+
+        params = [chrom]
+        where_extra = ""
+        if start is not None and end is not None:
+            where_extra = 'AND start <= ? AND "end" >= ?'
+            params.extend([int(end), int(start)])
+
+        cursor.execute(f"""
+            SELECT chrom, start, "end", ccre_id, score, strand, ccre_type, source, item_rgb, targets
+            FROM noccl_cCREs
+            WHERE chrom = ? {where_extra}
+            ORDER BY start
+            LIMIT ?
+        """, [*params, int(max_features)])
+        rows = cursor.fetchall()
+        conn.close()
+
+        features = []
+        for row in rows:
+            description = (
+                f"cCRE ID: {row['ccre_id']}<br>"
+                f"Type: {row['ccre_type'] or 'N/A'}<br>"
+                f"Source: {row['source'] or 'N/A'}<br>"
+                f"Score: {row['score']}<br>"
+                f"RGB: {row['item_rgb'] or 'N/A'}"
+            )
+            features.append({
+                'chr': row['chrom'],
+                'start': row['start'],
+                'end': row['end'],
+                'name': row['ccre_id'],
+                'description': description,
+                'targets': format_targets(row['targets']),
+            })
+
+        suffix = '' if len(features) < max_features else f' (first {max_features:,})'
+        return {
+            'name': f'{display_name}{suffix}',
+            'sourceType': 'annotation',
+            'format': 'bed',
+            'features': features,
+            'displayMode': 'SQUISHED',
+            'color': color,
+            'height': 70,
+        }
+
+    except Exception as e:
+        print(f"Error creating noccl_cCREs track: {e}")
+        return {
+            'name': display_name,
+            'sourceType': 'annotation',
+            'format': 'bed',
+            'features': [],
+            'displayMode': 'SQUISHED',
+            'color': color,
+            'height': 50,
+        }
+
 
 # Callback to update track information with sample counts
 @callback(

@@ -1,0 +1,9 @@
+NodeID,Label,NoteType,GO_Aspect
+DNAJC5,DNAJC5,Gene,N/A
+MKKS,MKKS,Gene,N/A
+PRKCA,PRKCA,Gene,N/A
+GO:0016192,Vesicle-mediated transport,Biological Process,BP
+GO:0036158,BBSome assembly,Biological Process,BP
+GO:0001934,Protein localization to cilium,Biological Process,BP
+GO:0007224,SHH / Smoothened signaling,Biological Process,BP
+GO:0060021,Palate Development (Master Term),Biological Process,BP

@@ -1,0 +1,101 @@
+{
+  "title": "LMO7 - Intron enhancer disruption",
+  "genes": [
+    "LMO7",
+    "SNAI1",
+    "CDH1",
+    "PITX2"
+  ],
+  "sections": [
+    {
+      "heading": "Function",
+      "paragraphs": [
+        "LMO7 is responsible for converting 5-methylcytosine (5mC) to 5-hydroxymethylcytosine (5hmC), which is responsible for initiating active DNA demethylation [Ketchum et al., 2024]."
+      ]
+    },
+    {
+      "heading": "IGV",
+      "paragraphs": [
+        {
+          "text": "Our cohort analysis discovers the case(s) in rare frequency that LMO7 is disturbed as shown here. ",
+          "links": [
+            {
+              "label": "Open LMO7 in IGV",
+              "href": "/population?gene=LMO7"
+            }
+          ],
+          "suffix": "."
+        }
+      ]
+    },
+    {
+      "heading": "Literature",
+      "paragraphs": [
+        "In several cancer models, loss or dysregulation of LMO7 can alter cell morphology, migration, invasion, and EMT-associated programs [Zhen et al., 2022, Zeng et al., 2024, Liu et al., 2021]."
+      ]
+    },
+    {
+      "heading": "Pathway",
+      "paragraphs": [
+        {
+          "text": "Our analysis discovers the case(s) in rare frequency that demonstrates the oligogenic interaction involving LMO7. ",
+          "links": [
+            {
+              "label": "Click here (LMO7, GO:0001837, CDH1, PITX2)",
+              "href": "/pathway?genes=LMO7,GO:0001837,CDH1,PITX2"
+            }
+          ],
+          "suffix": " to see the co-occurring SVs that are appearing with LMO7 in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TET-SNAIL4-BMP axis."
+        }
+      ]
+    },
+    {
+      "heading": "Supporting Data",
+      "paragraphs": [
+        "The evidence supporting the causality of the co-occurring SVs for ns-OFC has been curated. The summary is given below."
+      ],
+      "table": {
+        "columns": [
+          {
+            "name": "Evidence",
+            "id": "Evidence"
+          },
+          {
+            "name": "Finding",
+            "id": "Finding"
+          }
+        ],
+        "rows": [
+          {
+            "Evidence": "Overlapping with exons",
+            "Finding": "Yes"
+          },
+          {
+            "Evidence": "Overlapping with enhancer candidates",
+            "Finding": "Yes"
+          },
+          {
+            "Evidence": "Overlapping with active candidates",
+            "Finding": "Yes"
+          },
+          {
+            "Evidence": "Overlapping with promoter candidates",
+            "Finding": "Yes"
+          },
+          {
+            "Evidence": "Gene expression data (NCC E13.5)",
+            "Finding": "Detected (NCC E13.5 = 6.66)"
+          }
+        ]
+      }
+    },
+    {
+      "heading": "References",
+      "paragraphs": [
+        "Zhen YY, Wu CH, Chen HC, Chang EE, Lee JJ, Chen WY, Chang JM, Tseng PY, Wang YF, Hung CC. Coordination of LMO7 with FAK Signaling Sustains Epithelial Integrity in Renal Epithelia Exposed to Osmotic Pressure. Cells. 2022 Nov 28;11(23):3805. doi: 10.3390/cells11233805. PMID: 36497072; PMCID: PMC9741450.",
+        "Zeng Q, Jiang T, Wang J. Role of LMO7 in cancer (Review). Oncol Rep. 2024 Sep;52(3):117. doi: 10.3892/or.2024.8776. Epub 2024 Jul 12. PMID: 38994754; PMCID: PMC11267500.",
+        "Liu X, Yuan H, Zhou J, Wang Q, Qi X, Bernal C, Avella D, Kaifi JT, Kimchi ET, Timothy P, Cheng K, Miao Y, Jiang K, Li G. LMO7 as an Unrecognized Factor Promoting Pancreatic Cancer Progression and Metastasis. Front Cell Dev Biol. 2021 Mar 8;9:647387. doi: 10.3389/fcell.2021.647387. PMID: 33763427; PMCID: PMC7982467."
+      ]
+    }
+  ]
+}

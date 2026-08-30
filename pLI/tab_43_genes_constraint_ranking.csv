@@ -1,0 +1,42 @@
+gene,LOEUF,LOEUF_interpretation,pLI,pLI_interpretation,LoF_observed,LoF_expected,LoF_observed_expected,Missense_Z
+PHF21A,0.08,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,0.0,37.075,0.0,2.8609
+TET3,0.086,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,1.0,55.117,0.018143,2.878
+ZMYM3,0.106,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,1.0,44.558,0.022443,4.306
+RORB,0.112,Extreme LoF constraint,0.99991,Strong haploinsufficiency signal,0.0,26.583,0.0,3.0833
+MED1,0.117,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,2.0,53.631,0.037292,2.1391
+DOT1L,0.118,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,3.0,65.78,0.045607,2.7249
+MECOM,0.136,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,2.0,46.14,0.043346,1.6191
+MBD5,0.136,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,2.0,46.4,0.043103,0.85582
+BCOR,0.141,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,2.0,44.56,0.044884,1.8797
+DNMT1,0.143,Extreme LoF constraint,1.0,Strong haploinsufficiency signal,7.0,91.908,0.076163,4.9903
+TGFB2,0.148,Extreme LoF constraint,0.99905,Strong haploinsufficiency signal,0.0,20.149,0.0,2.1307
+SOX9,0.168,Extreme LoF constraint,0.99772,Strong haploinsufficiency signal,0.0,17.813,0.0,1.6311
+MLLT6,0.182,Extreme LoF constraint,0.99997,Strong haploinsufficiency signal,3.0,42.518,0.070559,2.1004
+MEIS2,0.184,Extreme LoF constraint,0.99938,Strong haploinsufficiency signal,1.0,25.72,0.038881,2.4571
+GATAD2A,0.202,Strong LoF constraint,0.99957,Strong haploinsufficiency signal,2.0,31.093,0.064323,1.2722
+SMARCA2,0.203,Strong LoF constraint,1.0,Strong haploinsufficiency signal,11.0,89.601,0.12277,5.054
+AFF3,0.221,Strong LoF constraint,0.99996,Strong haploinsufficiency signal,7.0,59.375,0.1179,1.7128
+NFE2L1,0.251,Strong LoF constraint,0.99759,Strong haploinsufficiency signal,3.0,30.895,0.097104,1.7553
+TCF7L2,0.273,Strong LoF constraint,0.99537,Strong haploinsufficiency signal,4.0,33.549,0.11923,2.3994
+PWWP2A,0.297,Strong LoF constraint,0.98292,Strong haploinsufficiency signal,2.0,21.206,0.094313,2.3485
+HIF1A,0.309,Strong LoF constraint,0.9777,Strong haploinsufficiency signal,7.0,42.525,0.16461,2.2242
+TCOF1,0.311,Strong LoF constraint,0.9541,Strong haploinsufficiency signal,12.0,62.576,0.19177,0.33899
+ANP32B,0.331,Strong LoF constraint,0.95827,Strong haploinsufficiency signal,1.0,14.341,0.069731,1.2651
+BMP4,0.334,Strong LoF constraint,0.9564,Strong haploinsufficiency signal,1.0,14.218,0.070331,1.0071
+BICC1,0.339,Strong LoF constraint,0.83685,Intermediate,10.0,50.016,0.19994,1.2467
+ELK1,0.341,Strong LoF constraint,0.93711,Strong haploinsufficiency signal,0.0,8.7843,0.0,2.1894
+SRSF6,0.369,Moderate LoF constraint,0.91099,Strong haploinsufficiency signal,3.0,20.998,0.14287,1.0995
+WDR82,0.396,Moderate LoF constraint,0.88696,Intermediate,2.0,15.879,0.12595,3.2927
+MYSM1,0.408,Moderate LoF constraint,0.043365,Low LoF intolerance,13.0,50.6,0.25692,1.2187
+LMO7,0.411,Moderate LoF constraint,0.00024661,Low LoF intolerance,22.0,76.344,0.28817,-0.16843
+SERTAD2,0.432,Moderate LoF constraint,0.8808,Intermediate,0.0,6.9269,0.0,0.67627
+EYA4,0.45,Moderate LoF constraint,0.04872,Low LoF intolerance,10.0,37.698,0.26526,1.1178
+SIM2,0.458,Moderate LoF constraint,0.19959,Low LoF intolerance,7.0,28.703,0.24388,0.96156
+PAX3,0.475,Moderate LoF constraint,0.24063,Low LoF intolerance,6.0,24.934,0.24063,1.618
+BRD9,0.522,Moderate LoF constraint,0.015373,Low LoF intolerance,9.0,30.113,0.29887,1.2636
+LIMS1,0.771,Mild LoF constraint,0.0031502,Low LoF intolerance,7.0,17.05,0.41056,1.416
+KDM8,0.836,Mild LoF constraint,2.5238e-05,Low LoF intolerance,11.0,21.792,0.50478,0.61454
+MEIS3,1.008,LoF tolerant,3.7957e-09,Low LoF intolerance,17.0,25.3,0.67194,0.16541
+ELP4,1.028,LoF tolerant,1.2277e-07,Low LoF intolerance,14.0,21.285,0.65773,-0.30045
+ZMYM5,1.041,LoF tolerant,0.00016664,Low LoF intolerance,8.0,13.87,0.57677,-0.055336
+SETD4,1.246,LoF tolerant,4.042e-13,Low LoF intolerance,21.0,24.276,0.86504,0.34362

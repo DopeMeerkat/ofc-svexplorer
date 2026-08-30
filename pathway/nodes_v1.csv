@@ -1,0 +1,42 @@
+NodeID,Label,NoteType,GO_Aspect
+TET3,TET3,Gene,N/A
+KMT2D,KMT2D,Gene,N/A
+EZH2,EZH2,Gene,N/A
+HDAC4,HDAC4,Gene,N/A
+DNMT1,DNMT1,Gene,N/A
+DICER1,DICER1,Gene,N/A
+TGFB3,TGFB3,Gene,N/A
+SNAI1,SNAI1,Gene,N/A
+CDH1,CDH1,Gene,N/A
+TP63,TP63,Gene,N/A
+IRF6,IRF6,Gene,N/A
+GRHL3,GRHL3,Gene,N/A
+CLDN3,CLDN3,Gene,N/A
+CLDN4,CLDN4,Gene,N/A
+PITX2,PITX2,Gene,N/A
+FGFR2,FGFR2,Gene,N/A
+HIF1A,HIF1A,Gene,N/A
+GO:0018022,Histone H3-K4 Methyltransferase Activity,Molecular Function,MF
+GO:0035069,Histone H3-K27 Methyltransferase Activity,Molecular Function,MF
+GO:0007049,Cell Cycle Regulation,Biological Process,BP
+GO:0004407,Histone Deacetylase Activity,Molecular Function,MF
+GO:0003886,DNA Methyltransferase Activity,Molecular Function,MF
+GO:0030621,Gene Silencing by miRNA,Biological Process,BP
+GO:0005024,TGF-beta Receptor Activity,Molecular Function,MF
+GO:0090136,Epithelial Cell Cell Adhesion,Biological Process,BP
+GO:0001837,Epithelial-Mesenchymal Transition (EMT),Biological Process,BP
+GO:0009156,Cell-Cell Adhesion Structural Activity,Molecular Function,MF
+GO:0009913,Epidermal Cell Differentiation (Periderm),Biological Process,BP
+GO:0030856,Regulation of Epithelial Differentiation,Biological Process,BP
+GO:0005007,Fibroblast growth factor receptor activity,Molecular Function,MF
+GO:0071456,Cellular response to hypoxia,Biological Process,BP
+GO:0060021,Palate Development (Master Term),Biological Process,BP
+STMN3,STMN3,Gene,N/A
+ZNF462,ZNF462,Gene,N/A
+MIER1,MIER1,Gene,N/A
+COL5A1,COL5A1,Gene,N/A
+MACROD2,MACROD2,Gene,N/A
+GO:0006281,DNA repair,Biological Process,BP
+MICA,MICA,Gene,N/A
+GO:0006915,Apoptotic process,Biological Process,BP
+GO:0035514,DNA Demethylase Activity,Molecular Function,MF

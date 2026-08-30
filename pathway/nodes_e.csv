@@ -1,0 +1,30 @@
+NodeID,Label,NodeType,GO_Aspect
+KMT2D,KMT2D Methyltransferase,Gene,N/A
+EZH2,EZH2 Methyltransferase,Gene,N/A
+HDAC4,HDAC4 Deacetylase,Gene,N/A
+DNMT1,DNMT1 Methyltransferase,Gene,N/A
+DICER1,DICER1 Endoribonuclease,Gene,N/A
+TGFB3,TGFB3 Ligand,Gene,N/A
+SNAI1,SNAI1 Transcription Factor,Gene,N/A
+CDH1,E-Cadherin,Gene,N/A
+TP63,TP63 Transcription Factor,Gene,N/A
+IRF6,IRF6 Transcription Factor,Gene,N/A
+GRHL3,GRHL3 Transcription Factor,Gene,N/A
+CLDN3,Claudin-3,Gene,N/A
+CLDN4,Claudin-4,Gene,N/A
+PITX2,PITX2 Transcription Factor,Gene,N/A
+FGFR2,FGFR2 Receptor,Gene,N/A
+GO:0018022,Histone H3-K4 Methyltransferase Activity,Molecular Function,MF
+GO:0035069,Histone H3-K27 Methyltransferase Activity,Molecular Function,MF
+GO:0004407,Histone Deacetylase Activity,Molecular Function,MF
+GO:0003886,DNA Methyltransferase Activity,Molecular Function,MF
+GO:0030621,Gene Silencing by miRNA,Biological Process,BP
+GO:0007049,Cell Cycle Regulation,Biological Process,BP
+GO:0005024,TGF-beta Receptor Activity,Molecular Function,MF
+GO:0009156,Cell-Cell Adhesion Structural Activity,Molecular Function,MF
+GO:0005007,FGF Receptor Activity,Molecular Function,MF
+GO:0090136,Epithelial Cell Cell Adhesion,Biological Process,BP
+GO:0001837,Epithelial-Mesenchymal Transition (EMT),Biological Process,BP
+GO:0009913,Epidermal Cell Differentiation (Periderm),Biological Process,BP
+GO:0030856,Regulation of Epithelial Differentiation,Biological Process,BP
+GO:0060021,Palate Development (Master Term),Biological Process,BP

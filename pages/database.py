@@ -1,160 +1,697 @@
-"""Database page for running preset or user-edited read-only queries."""
+"""Database overview page with cached static metrics and bar graph exploration."""
 
-import json
-import sqlite3
 from pathlib import Path
 
 import pandas as pd
-from dash import Input, Output, State, callback, dash_table, dcc, html, no_update
+import plotly.express as px
+import plotly.graph_objects as go
+from dash import Input, Output, callback, dash_table, dcc, html
 
-from utils.database import DB_PATH, run_readonly_query, validate_readonly_query
-from utils.styling import UCONN_LIGHT_BLUE, UCONN_NAVY, uconn_styles
-
-
-QUERY_CONFIG_PATH = Path(__file__).resolve().parents[1] / "data" / "database_queries.json"
-
-
-def load_query_presets():
-    """Load configured database queries."""
-    with QUERY_CONFIG_PATH.open(encoding="utf-8") as handle:
-        presets = json.load(handle)
-    return {
-        preset["name"]: preset
-        for preset in presets
-        if preset.get("name") and preset.get("query")
-    }
+from pages.visualization_uploader import (
+    BAR_X_AXES,
+    BAR_Y_METRICS,
+    _chromosome_category_sort_key,
+    _create_grouped_bar_figure,
+    load_bar_graph_data,
+    processing_error,
+)
+from utils.styling import UCONN_LIGHT_BLUE, UCONN_NAVY, muted_text_style, page_title_style, uconn_styles
 
 
-def load_full_query_dataframe(query):
-    """Execute a validated read-only query without adding a row limit."""
-    safe_query = validate_readonly_query(query)
-    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+CACHE_DIR = Path(__file__).resolve().parents[1] / "database"
+CARD_STYLE = {
+    "backgroundColor": "#FFFFFF",
+    "border": "1px solid #D8E2EA",
+    "borderRadius": "10px",
+    "padding": "18px",
+    "boxShadow": "0 2px 8px rgba(0,0,0,0.04)",
+}
+CHART_HEIGHT = 380
+SMALL_CHART_HEIGHT = 260
+SV_TYPE_ORDER = ["DEL", "INS", "INV", "DUP"]
+RACE_GROUP_ORDER = ["African", "Asian"]
+ROLE_GROUP_ORDER = ["Child", "Parents", "Background population"]
+PHENOTYPE_GROUP_ORDER = ["Affected", "Normal", "CL", "CLP"]
+SV_GF_AVERAGE_SAMPLE_COUNT = 710
+HG38_CHROMOSOME_LENGTHS = {
+    "chr1": 248956422,
+    "chr2": 242193529,
+    "chr3": 198295559,
+    "chr4": 190214555,
+    "chr5": 181538259,
+    "chr6": 170805979,
+    "chr7": 159345973,
+    "chr8": 145138636,
+    "chr9": 138394717,
+    "chr10": 133797422,
+    "chr11": 135086622,
+    "chr12": 133275309,
+    "chr13": 114364328,
+    "chr14": 107043718,
+    "chr15": 101991189,
+    "chr16": 90338345,
+    "chr17": 83257441,
+    "chr18": 80373285,
+    "chr19": 58617616,
+    "chr20": 64444167,
+    "chr21": 46709983,
+    "chr22": 50818468,
+    "chrX": 156040895,
+    "chrY": 57227415,
+}
+
+
+METRIC_TOOLTIPS = {
+    "Families": "Number of family groups represented in the cohort.",
+    "Samples": "Number of sequenced individuals represented in the cohort.",
+    "Cases (Affected)": "Number of individuals marked as affected in the cohort.",
+    "Parents": "Number of parent samples represented in the cohort.",
+    "Background Controls": "Number of background control samples available for comparison.",
+    "Unique SVs": "Number of distinct structural variant calls observed across the cohort.",
+    "Annotated Genes": "Number of genes available for gene-overlap and annotation summaries.",
+    "Regulatory Elements": "Number of distinct regulatory feature intervals used for overlap summaries.",
+}
+
+
+def _load_csv(filename):
+    path = CACHE_DIR / filename
+    if not path.is_file():
+        return pd.DataFrame()
+    return pd.read_csv(path)
+
+
+def _format_int(value):
     try:
-        return pd.read_sql_query(safe_query, conn)
-    finally:
-        conn.close()
+        return f"{int(value):,}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
+def _chromosome_order(values):
+    return sorted([str(value) for value in values], key=_chromosome_category_sort_key)
+
+
+def _table(dataframe, page_size=10):
+    if dataframe.empty:
+        return html.P("Cached data is not available. Run database/generate_database_overview.py.", style={"color": "#A61B1B"})
+    display = dataframe.copy()
+    for column in display.columns:
+        numeric = pd.to_numeric(display[column], errors="coerce")
+        if numeric.notna().any():
+            display[column] = display[column].where(
+                numeric.isna() | (numeric.abs() < 1_000),
+                numeric.map(lambda value: f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"),
+            )
+    return dash_table.DataTable(
+        data=display.to_dict("records"),
+        columns=[{"name": column.replace("_", " ").title(), "id": column} for column in dataframe.columns],
+        page_size=page_size,
+        sort_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "center", "padding": "8px", "maxWidth": "320px"},
+        style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold", "textAlign": "center"},
+    )
+
+
+def _annotation_overlap_table(dataframe, page_size=8, average_sample_count=None):
+    if dataframe.empty:
+        return html.P("Cached data is not available. Run database/generate_database_overview.py.", style={"color": "#A61B1B"})
+    display = dataframe.copy()
+    if average_sample_count:
+        average_columns = {
+            "overlap_records": "average_overlap_records_per_sample",
+            "distinct_svs": "average_distinct_svs_per_sample",
+            "distinct_genes": "average_distinct_genes_per_sample",
+            "distinct_annotation_records": "average_distinct_gf_records_per_sample",
+        }
+        averaged = pd.DataFrame()
+        if "annotation" in display.columns:
+            averaged["annotation"] = display["annotation"]
+        for source_column, average_column in average_columns.items():
+            if source_column in display.columns:
+                values = pd.to_numeric(display[source_column], errors="coerce") / average_sample_count
+                averaged[average_column] = values.map(lambda value: "N/A" if pd.isna(value) else f"{value:,.1f}")
+        for column in display.columns:
+            if column.startswith("pct_"):
+                averaged[column] = display[column]
+        display = averaged
+    for column in display.columns:
+        if column.startswith("pct_"):
+            display[column] = pd.to_numeric(display[column], errors="coerce").map(lambda value: "N/A" if pd.isna(value) else f"{value:.1%}")
+    labels = {
+        "annotation": "Genomic Feature",
+        "average_overlap_records_per_sample": "Overlap Records",
+        "average_distinct_svs_per_sample": "SVs",
+        "average_distinct_genes_per_sample": "Genes",
+        "average_distinct_gf_records_per_sample": "GF Records",
+        "overlap_records": "Overlap Records",
+        "distinct_sv_gene_pairs": "Distinct SV-Gene Pairs",
+        "distinct_svs": "Distinct SVs",
+        "distinct_genes": "Distinct Genes",
+        "distinct_annotation_records": "Distinct GF Records",
+        "pct_unique_svs": "% Unique SVs",
+        "pct_annotated_genes": "% Annotated Genes",
+        "pct_genomic_feature_records": "% GF Records",
+    }
+    tooltip_header = {
+        "annotation": "Genomic feature class being compared with SV-gene records.",
+        "average_overlap_records_per_sample": "Average number of SV-gene-to-feature overlap records per person.",
+        "average_distinct_svs_per_sample": "Average number of unique SVs with this feature overlap per person.",
+        "average_distinct_genes_per_sample": "Average number of genes with this feature overlap per person.",
+        "average_distinct_gf_records_per_sample": "Average number of genomic feature records overlapped per person.",
+        "pct_unique_svs": "Percent of all unique SVs that overlap this feature class.",
+        "pct_annotated_genes": "Percent of annotated genes represented in this feature-overlap set.",
+        "pct_genomic_feature_records": "Percent of all genomic feature records represented in this overlap set.",
+    }
+    return dash_table.DataTable(
+        data=display.to_dict("records"),
+        columns=[{"name": labels.get(column, column.replace("_", " ").title()), "id": column} for column in display.columns],
+        tooltip_header={column: {"value": tooltip_header[column], "type": "text"} for column in display.columns if column in tooltip_header},
+        tooltip_delay=250,
+        tooltip_duration=None,
+        page_size=page_size,
+        sort_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={"textAlign": "center", "padding": "8px", "maxWidth": "320px"},
+        style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold", "textAlign": "center"},
+    )
+
+
+def _metric_cards(summary):
+    cards = [
+        ("Families", summary.get("family_count")),
+        ("Samples", summary.get("individual_count")),
+        ("Cases (Affected)", summary.get("affected_case_count")),
+        ("Parents", summary.get("parent_count")),
+        ("Background Controls", summary.get("background_control_count")),
+        ("Unique SVs", summary.get("unique_phenotype_svs")),
+        ("Annotated Genes", summary.get("annotated_gene_count")),
+        ("Regulatory Elements", summary.get("regulatory_element_count")),
+    ]
+    return html.Div([
+        html.Div([
+            html.Div(label, style={"fontSize": "13px", "color": "#52606D", "marginBottom": "6px"}),
+            html.Div(_format_int(value), style={"fontSize": "26px", "fontWeight": "700", "color": UCONN_NAVY}),
+        ], style=CARD_STYLE, title=METRIC_TOOLTIPS.get(label, ""))
+        for label, value in cards
+    ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(190px, 1fr))", "gap": "14px"})
+
+
+def _load_summary():
+    path = CACHE_DIR / "overview_summary.json"
+    if not path.is_file():
+        return {}
+    return pd.read_json(path, typ="series").to_dict()
+
+
+def _horizontal_bar_figure(dataframe, y_col, x_col, title, y_label, x_label, color=UCONN_NAVY):
+    if dataframe.empty:
+        return px.bar(title=title)
+    fig = px.bar(
+        dataframe,
+        x=x_col,
+        y=y_col,
+        orientation="h",
+        color_discrete_sequence=[color],
+        labels={y_col: y_label, x_col: x_label},
+        title=title,
+    )
+    fig.update_layout(
+        showlegend=False,
+        height=CHART_HEIGHT,
+        margin=dict(l=120, r=30, t=70, b=50),
+        plot_bgcolor="#FFFFFF",
+        yaxis=dict(tickangle=0),
+        xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+    )
+    return fig
+
+
+def _vertical_bar_figure(dataframe, x_col, y_col, title, x_label, y_label, color=UCONN_NAVY, category_order=None):
+    if dataframe.empty:
+        return px.bar(title=title)
+    kwargs = {}
+    if category_order:
+        kwargs["category_orders"] = {x_col: category_order}
+    fig = px.bar(
+        dataframe,
+        x=x_col,
+        y=y_col,
+        color_discrete_sequence=[color],
+        labels={x_col: x_label, y_col: y_label},
+        title=title,
+        **kwargs,
+    )
+    fig.update_layout(
+        showlegend=False,
+        height=430,
+        margin=dict(l=60, r=20, t=70, b=80),
+        plot_bgcolor="#FFFFFF",
+        xaxis=dict(
+            title_font=dict(size=14),
+            tickfont=dict(size=12),
+            tickangle=-90,
+        ),
+        yaxis=dict(
+            title_font=dict(size=14),
+            tickfont=dict(size=12),
+        ),
+    )
+    return fig
+
+
+def _individual_figure(dataframe):
+    if dataframe.empty:
+        return px.bar(title="Samples")
+    total = dataframe["count"].sum()
+    fig = _horizontal_bar_figure(
+        dataframe, "group", "ratio", "Samples", "Group", "% of Displayed Samples"
+    )
+    fig.update_xaxes(tickformat=".0%")
+    fig.update_traces(customdata=dataframe[["count"]], hovertemplate="%{y}<br>%{x:.1%} of displayed samples<br>%{customdata[0]:,} / " + f"{total:,}" + " samples<extra></extra>")
+    return fig
+
+
+def _individual_sv_figure(dataframe):
+    if dataframe.empty:
+        return px.bar(title="Average SV Calls per Sample")
+    fig = _horizontal_bar_figure(
+        dataframe, "group", "svs_per_sample", "Average SV Calls per Sample", "Group", "Average SV calls per sample",
+        color=UCONN_LIGHT_BLUE,
+    )
+    fig.update_traces(customdata=dataframe[["count", "samples"]], hovertemplate="%{y}<br>%{x:,.1f} average SV calls per sample<br>%{customdata[0]:,} SV rows / %{customdata[1]:,} samples<extra></extra>")
+    return fig
+
+
+def _sv_type_figure(dataframe):
+    if dataframe.empty:
+        return px.bar(title="SV Type Counts")
+    working = dataframe.sort_values("structural_variants", ascending=True)
+    total = int(working["structural_variants"].sum())
+    fig = _horizontal_bar_figure(
+        working, "sv_type", "ratio", "SV Type Distribution", "SV Type", "% of SV Rows",
+        color="#45B7D1",
+    )
+    fig.update_xaxes(tickformat=".0%")
+    fig.update_traces(customdata=working[["structural_variants"]], hovertemplate="%{y}<br>%{x:.1%} of SV rows<br>%{customdata[0]:,} / " + f"{total:,}" + " SV rows<extra></extra>")
+    return fig
+
+
+def _phenotype_figure(dataframe):
+    if dataframe.empty:
+        return px.bar(title="Phenotype Distribution")
+    total = int(dataframe["count"].sum())
+    fig = _horizontal_bar_figure(
+        dataframe, "phenotype", "ratio", "Phenotype Distribution", "Phenotype", "% of Samples",
+        color="#96CEB4",
+    )
+    fig.update_xaxes(tickformat=".0%")
+    fig.update_traces(customdata=dataframe[["count"]], hovertemplate="%{y}<br>%{x:.1%} of samples<br>%{customdata[0]:,} / " + f"{total:,}" + " samples<extra></extra>")
+    return fig
+
+
+def _sv_region_figure(dataframe):
+    order = ["Exonic", "Intronic", "Promoter", "Enhancer", "Insulator", "Intergenic"]
+    if dataframe.empty:
+        return px.bar(title="Where SVs Occur")
+    total = int(round(dataframe.loc[dataframe["region"].isin(["Exonic", "Intronic", "Intergenic"]), "sv_count"].sum())) or int(dataframe["sv_count"].max())
+    fig = _vertical_bar_figure(
+        dataframe, "region", "ratio", "Where SVs Occur", "Region", "% of Unique SVs",
+        color=UCONN_LIGHT_BLUE,
+        category_order=order,
+    )
+    fig.update_yaxes(tickformat=".0%")
+    fig.update_traces(customdata=dataframe[["sv_count"]], hovertemplate="%{x}<br>%{y:.1%} of unique SVs<br>%{customdata[0]:,} / " + f"{total:,}" + " unique SVs<extra></extra>")
+    return fig
+
+
+def _chromosome_figure(dataframe):
+    if dataframe.empty:
+        return px.bar(title="SVs by Chromosome")
+    working = dataframe.copy()
+    working["chrom"] = working["chrom"].astype(str)
+    chrom_order = _chromosome_order(working["chrom"].unique())
+    working = working.set_index("chrom").reindex(chrom_order).reset_index()
+    working["chromosome_length_mb"] = working["chrom"].map(HG38_CHROMOSOME_LENGTHS).fillna(0) / 1_000_000
+    total = int(working["structural_variants"].sum())
+    fig = go.Figure()
+    fig.add_bar(
+        x=working["chrom"],
+        y=working["structural_variants"],
+        name="Unique SVs",
+        marker_color=UCONN_LIGHT_BLUE,
+        customdata=working[["ratio"]],
+        hovertemplate=(
+            "Chromosome: %{x}<br>"
+            "Unique SVs: %{y:,}<br>"
+            "% of unique SVs: %{customdata[0]:.1%}"
+            "<extra></extra>"
+        ),
+    )
+    fig.add_scatter(
+        x=working["chrom"],
+        y=working["chromosome_length_mb"],
+        name="Chromosome length",
+        mode="lines+markers",
+        yaxis="y2",
+        line={"color": UCONN_NAVY, "width": 3},
+        marker={"size": 7},
+        hovertemplate="Chromosome: %{x}<br>Length: %{y:.1f} Mb<extra></extra>",
+    )
+    fig.update_layout(
+        title="SVs by Chromosome and Chromosome Length",
+        height=430,
+        margin=dict(l=70, r=80, t=70, b=70),
+        plot_bgcolor="#FFFFFF",
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+        xaxis={
+            "title": "Chromosome",
+            "categoryorder": "array",
+            "categoryarray": chrom_order,
+            "tickangle": -90,
+        },
+        yaxis={"title": f"Unique SVs (n={total:,})"},
+        yaxis2={
+            "title": "Chromosome Length (Mb)",
+            "overlaying": "y",
+            "side": "right",
+            "showgrid": False,
+        },
+    )
+    return fig
+
+
+def _length_figure(dataframe):
+    if dataframe.empty:
+        return px.bar(title="SV Length Distribution")
+    order = ["0-50 bp", "51-100 bp", "101 bp-1 kb", "1-10 kb", "10-100 kb", "100 kb-1 Mb", ">1 Mb"]
+    fig = px.bar(
+        dataframe,
+        x="length_bin",
+        y="structural_variants",
+        category_orders={"length_bin": order},
+        labels={"length_bin": "SV Length", "structural_variants": "Structural Variants"},
+        title=(
+            "SV Length Distribution"
+            "<br><br><sup>SV calls were generated from Illumina short-read sequencing data;</sup>"
+            "<br><sup>length distributions should be interpreted in that detection context.</sup>"
+        ),
+        color_discrete_sequence=[UCONN_LIGHT_BLUE],
+    )
+    fig.update_traces(hovertemplate="SV length: %{x}<br>Structural variants: %{y:,}<extra></extra>")
+    fig.update_layout(
+        height=720,
+        margin=dict(l=60, r=90, t=95, b=140),
+        plot_bgcolor="#FFFFFF",
+        hoverlabel={"align": "left"},
+    )
+    return fig
+
+
+def _cohort_figure(dataframe):
+    if dataframe.empty:
+        return px.bar(title="Cohort Breakdown")
+    fig = px.bar(
+        dataframe,
+        x="value",
+        y="samples",
+        color="category",
+        facet_col="category",
+        facet_col_wrap=3,
+        facet_row_spacing=0.18,
+        labels={"value": "Group", "samples": "Samples", "category": "Category"},
+        title="Cohort Breakdown",
+    )
+    fig.for_each_annotation(lambda annotation: annotation.update(text=annotation.text.split("=")[-1].title()))
+    fig.update_xaxes(matches=None, showticklabels=True, tickangle=-35, automargin=True, title_text="")
+    fig.update_layout(height=720, margin=dict(l=60, r=20, t=90, b=140), plot_bgcolor="#FFFFFF")
+    return fig
+
+
+def _sv_type_order(values):
+    present = [str(value) for value in values if pd.notna(value)]
+    ordered = [value for value in SV_TYPE_ORDER if value in present]
+    ordered.extend(sorted(value for value in present if value not in ordered))
+    return ordered
+
+
+def _sv_type_group_figure(dataframe, group):
+    if dataframe.empty:
+        return px.bar(title=group)
+    group_df = dataframe[dataframe["group"] == group].copy()
+    if group_df.empty:
+        return px.bar(title=group)
+
+    order = _sv_type_order(dataframe["sv_type"].unique())
+    group_df = group_df.set_index("sv_type").reindex(order).reset_index()
+    group_df["group"] = group
+    for column in ["raw_count", "group_total", "normalized_percent", "unique_samples", "count_per_sample"]:
+        group_df[column] = pd.to_numeric(group_df[column], errors="coerce").fillna(0)
+    group_df["percent_label"] = group_df["normalized_percent"].map(lambda value: f"{value:.1f}%")
+
+    fig = px.bar(
+        group_df,
+        x="normalized_percent",
+        y="sv_type",
+        text="percent_label",
+        orientation="h",
+        title=group,
+        labels={"normalized_percent": "% of SV Rows", "sv_type": "SV Type"},
+        color_discrete_sequence=[UCONN_LIGHT_BLUE],
+        category_orders={"sv_type": order},
+    )
+    fig.update_xaxes(range=[0, 100], ticksuffix="%")
+    fig.update_layout(
+        showlegend=False,
+        height=SMALL_CHART_HEIGHT,
+        margin=dict(l=70, r=20, t=52, b=44),
+        plot_bgcolor="#FFFFFF",
+        yaxis={"categoryorder": "array", "categoryarray": order[::-1]},
+    )
+    fig.update_traces(textposition="auto", textfont=dict(size=12), cliponaxis=False)
+    fig.update_traces(
+        customdata=group_df[["group", "raw_count", "group_total", "unique_samples", "count_per_sample"]],
+        hovertemplate=(
+            "Group: %{customdata[0]}<br>"
+            "SV type: %{y}<br>"
+            "Raw count: %{customdata[1]:,.0f}<br>"
+            "Total SVs in group: %{customdata[2]:,.0f}<br>"
+            "Percent of group: %{x:.1f}%<br>"
+            "Unique samples: %{customdata[3]:,.0f}<br>"
+            "Average SV calls per sample: %{customdata[4]:,.1f}"
+            "<extra></extra>"
+        ),
+    )
+    return fig
+
+
+def _sv_type_group_section(dataframe):
+    if dataframe.empty:
+        return html.Div([
+            html.H3("SV Type Distributions by Group", style={"color": UCONN_NAVY}),
+            html.P("Cached data is not available. Run database/generate_database_overview.py.", style={"color": "#A61B1B"}),
+        ], style={**CARD_STYLE, "marginTop": "18px"})
+
+    race_df = dataframe[dataframe["comparison"] == "Race / ancestry comparison"]
+    role_df = dataframe[dataframe["comparison"] == "Role / phenotype comparison"]
+    race_groups = [group for group in RACE_GROUP_ORDER if group in set(race_df["group"])]
+    role_groups = [group for group in ROLE_GROUP_ORDER if group in set(role_df["group"])]
+    phenotype_groups = [group for group in PHENOTYPE_GROUP_ORDER if group in set(role_df["group"])]
+
+    return html.Div([
+        html.H3("SV Type Distributions by Group", style={"color": UCONN_NAVY, "marginBottom": "6px"}),
+        html.P(
+            "Each chart shows SV row-type composition within a group. Bar length is normalized percentage; hover text includes raw counts, total SV rows, unique samples, and average SV calls per sample. The average is raw SV records divided by unique samples in that group.",
+            style={"fontSize": "13px", "color": "#52606D", "marginBottom": "16px"},
+        ),
+        html.H4("Race / Ancestry Comparison", style={"color": UCONN_NAVY, "margin": "0 0 10px 0"}),
+        html.Div([
+            dcc.Graph(figure=_sv_type_group_figure(race_df, group), config={"displayModeBar": False})
+            for group in race_groups
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(280px, 1fr))", "gap": "14px"}),
+        html.H4("Role Comparison", style={"color": UCONN_NAVY, "margin": "22px 0 10px 0"}),
+        html.Div([
+            dcc.Graph(figure=_sv_type_group_figure(role_df, group), config={"displayModeBar": False})
+            for group in role_groups
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(280px, 1fr))", "gap": "14px"}),
+        html.H4("Phenotype / Status Comparison", style={"color": UCONN_NAVY, "margin": "22px 0 10px 0"}),
+        html.Div([
+            dcc.Graph(figure=_sv_type_group_figure(role_df, group), config={"displayModeBar": False})
+            for group in phenotype_groups
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(280px, 1fr))", "gap": "14px"}),
+    ], style={**CARD_STYLE, "marginTop": "18px"})
+
+
+def _gene_exon_figure(dataframe):
+    if dataframe.empty:
+        return px.bar(title="Genes and Exons by Chromosome")
+    working = dataframe.copy()
+    working["chrom"] = working["chrom"].astype(str)
+    long_df = working.melt(id_vars="chrom", value_vars=["genes", "exons"], var_name="annotation", value_name="count")
+    fig = px.bar(
+        long_df,
+        x="chrom",
+        y="count",
+        color="annotation",
+        barmode="group",
+        category_orders={"chrom": _chromosome_order(working["chrom"].unique())},
+        labels={"chrom": "Chromosome", "count": "Records", "annotation": "Annotation"},
+        title="Genes and Exons by Chromosome",
+    )
+    fig.update_layout(height=460, margin=dict(l=60, r=20, t=70, b=70), plot_bgcolor="#FFFFFF")
+    return fig
+
+
+def _static_layout():
+    summary = _load_summary()
+    cohort_counts = _load_csv("cohort_counts.csv")
+    sv_count_statistics = _load_csv("sv_count_statistics.csv")
+    sv_type_counts = _load_csv("sv_type_counts.csv")
+    chromosome_distribution = _load_csv("chromosome_distribution.csv")
+    sv_length_bins = _load_csv("sv_length_bins.csv")
+    sv_gene_summary = _load_csv("sv_gene_summary.csv")
+    sv_gene_annotation_overlap = _load_csv("sv_gene_annotation_overlap.csv")
+    individual_group_counts = _load_csv("individual_group_counts.csv")
+    individual_sv_counts = _load_csv("individual_sv_counts.csv")
+    phenotype_distribution = _load_csv("phenotype_distribution.csv")
+    sv_region_counts = _load_csv("sv_region_counts.csv")
+    sv_type_group_distribution = _load_csv("sv_type_group_distribution.csv")
+
+    return html.Div([
+        html.P(
+            "Use the tooltips to see detailed counts, totals, percentages, and per-sample averages for each chart.",
+            style={**muted_text_style, "marginBottom": "18px"},
+        ),
+        _metric_cards(summary),
+        html.Div([
+            dcc.Graph(figure=_individual_figure(individual_group_counts), config={"displayModeBar": False}),
+            dcc.Graph(figure=_individual_sv_figure(individual_sv_counts), config={"displayModeBar": False}),
+            dcc.Graph(figure=_sv_type_figure(sv_type_counts), config={"displayModeBar": False}),
+            dcc.Graph(figure=_phenotype_figure(phenotype_distribution), config={"displayModeBar": False}),
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(320px, 1fr))", "gap": "16px", "marginTop": "18px"}),
+        html.Div([
+            dcc.Graph(figure=_sv_region_figure(sv_region_counts), config={"displayModeBar": False}),
+            dcc.Graph(figure=_chromosome_figure(chromosome_distribution), config={"displayModeBar": False}),
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(420px, 1fr))", "gap": "16px", "marginTop": "18px"}),
+        html.Div([
+            html.Div([html.H3("SV Count Statistics", style={"color": UCONN_NAVY}), _table(sv_count_statistics, page_size=8)], style=CARD_STYLE),
+            html.Div([html.H3("SV-Gene Overlap Summary", style={"color": UCONN_NAVY}), _table(sv_gene_summary, page_size=5)], style=CARD_STYLE),
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(360px, 1fr))", "gap": "16px", "marginTop": "18px"}),
+        html.Div([
+            html.Div([
+                html.H3("SV-GF Overlap per Person", style={"color": UCONN_NAVY}),
+                html.P(
+                    f"SV-gene records where the SV interval intersects each genomic feature (GF). Count columns are averages per person, calculated as cohort totals divided by {SV_GF_AVERAGE_SAMPLE_COUNT:,} samples. Exon counts require gene matching; active enhancer counts use MESENCHYMAL and NEURALCREST rows.",
+                    style={"fontSize": "13px", "color": "#52606D", "marginBottom": "12px"},
+                ),
+                _annotation_overlap_table(
+                    sv_gene_annotation_overlap,
+                    page_size=8,
+                    average_sample_count=SV_GF_AVERAGE_SAMPLE_COUNT,
+                ),
+            ], style=CARD_STYLE),
+        ], style={"marginTop": "18px"}),
+        html.Div([
+            html.Div([
+                dcc.Graph(
+                    figure=_length_figure(sv_length_bins),
+                    config={"displayModeBar": False, "responsive": True},
+                    style={"height": "760px"},
+                ),
+            ], style={"minHeight": "760px"}),
+            dcc.Graph(
+                id="database-cohort-breakdown-graph",
+                figure=_cohort_figure(cohort_counts),
+                config={"displayModeBar": False, "responsive": True},
+                style={"height": "760px"},
+            ),
+        ], style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(420px, 1fr))", "gap": "42px", "marginTop": "18px", "alignItems": "stretch"}),
+        _sv_type_group_section(sv_type_group_distribution),
+    ])
+
+
+def _interactive_layout():
+    return html.Div([
+        html.P(
+            "Build a bar graph by selecting one or more grouping options and a value to summarize.",
+            style={"marginBottom": "16px"},
+        ),
+        html.Div([
+            html.Label("X Axes", style={"fontWeight": "600", "marginBottom": "8px"}),
+            dcc.Checklist(
+                id="database-bar-x-axis",
+                options=[{"label": config["label"], "value": value} for value, config in BAR_X_AXES.items()],
+                value=["chrom", "sv_type"],
+                inline=True,
+                inputStyle={"marginRight": "6px"},
+                labelStyle={
+                    "display": "inline-block",
+                    "border": "1px solid #B7C2CE",
+                    "borderRadius": "6px",
+                    "padding": "8px 12px",
+                    "margin": "0 8px 8px 0",
+                    "cursor": "pointer",
+                },
+            ),
+        ], style={"marginBottom": "14px"}),
+        html.Div([
+            html.Label("Y Value", style={"fontWeight": "600", "marginBottom": "8px"}),
+            dcc.RadioItems(
+                id="database-bar-y-value",
+                options=[{"label": config["label"], "value": value} for value, config in BAR_Y_METRICS.items()],
+                value="unique_svs",
+                inline=True,
+                inputStyle={"marginRight": "6px"},
+                labelStyle={"margin": "0 18px 8px 0", "cursor": "pointer"},
+            ),
+        ], style={"marginBottom": "18px"}),
+        dcc.Loading(html.Div(id="database-bar-graph-output"), type="default"),
+    ], style=CARD_STYLE)
 
 
 def page_layout():
-    presets = load_query_presets()
     return html.Div([
-        html.H2("Database", style={"color": UCONN_NAVY, "marginBottom": "12px"}),
-        html.P(
-            "Choose a configured query or enter a custom read-only SQLite query. "
-            "The table preview is limited to 5,000 rows; CSV downloads include all query results.",
-            style={"marginBottom": "20px"},
-        ),
-        html.Label("Configured Query", style={"fontWeight": "600", "marginBottom": "6px"}),
-        dcc.Dropdown(
-            id="database-query-preset",
-            options=[{"label": name, "value": name} for name in presets],
-            placeholder="Select a configured query",
-            clearable=True,
-            style={"marginBottom": "10px"},
-        ),
-        html.Div(id="database-query-description", style={"marginBottom": "16px", "color": "#555"}),
-        html.Label("Read-only SQLite Query", style={"fontWeight": "600", "marginBottom": "6px"}),
-        dcc.Textarea(
-            id="database-query-input",
-            placeholder="SELECT ... or WITH ... SELECT ...",
-            style={
-                "width": "100%",
-                "minHeight": "180px",
-                "padding": "12px",
-                "fontFamily": "monospace",
-                "border": f"1px solid {UCONN_LIGHT_BLUE}",
-                "borderRadius": "6px",
-                "resize": "vertical",
-            },
-        ),
-        html.Div([
-            html.Button(
-                "Run Query",
-                id="database-query-submit",
-                n_clicks=0,
-                style=uconn_styles["button"],
-            ),
-            html.Button(
-                "Download CSV",
-                id="database-query-download-button",
-                n_clicks=0,
-                style={**uconn_styles["button"], "marginLeft": "10px"},
-            ),
-            dcc.Download(id="database-query-download"),
-        ], style={"marginTop": "12px"}),
-        dcc.Loading(
-            children=html.Div([
-                html.Div(id="database-query-status", style={"marginTop": "18px"}),
-                html.Div(id="database-query-results", style={"marginTop": "12px"}),
-            ]),
-            type="default",
+        html.H2("Database Overview", style=page_title_style),
+        dcc.Tabs(
+            id="database-overview-tabs",
+            value="static",
+            children=[
+                dcc.Tab(label="Static", value="static", children=html.Div(_static_layout(), style={"paddingTop": "22px"})),
+                dcc.Tab(label="Interactive", value="interactive", children=html.Div(_interactive_layout(), style={"paddingTop": "22px"})),
+            ],
+            colors={"border": UCONN_LIGHT_BLUE, "primary": UCONN_NAVY, "background": "#FFFFFF"},
         ),
     ], style={**uconn_styles["content"], "maxWidth": "1400px", "margin": "30px auto"})
 
 
 @callback(
-    Output("database-query-input", "value"),
-    Output("database-query-description", "children"),
-    Input("database-query-preset", "value"),
-    prevent_initial_call=True,
+    Output("database-bar-graph-output", "children"),
+    Input("database-bar-x-axis", "value"),
+    Input("database-bar-y-value", "value"),
 )
-def select_query_preset(preset_name):
-    presets = load_query_presets()
-    preset = presets.get(preset_name)
-    if not preset:
-        return "", ""
-    return preset["query"], preset.get("description", "")
-
-
-@callback(
-    Output("database-query-status", "children"),
-    Output("database-query-results", "children"),
-    Input("database-query-submit", "n_clicks"),
-    State("database-query-input", "value"),
-    prevent_initial_call=True,
-)
-def run_database_query(n_clicks, query):
-    if not n_clicks:
-        return "", html.Div()
-
+def update_database_bar_graph(x_axes, y_metric):
     try:
-        safe_query = validate_readonly_query(query)
-        rows = run_readonly_query(safe_query, limit=5000)
+        df, axes, metrics = load_bar_graph_data(x_axes, y_metric)
+        if df.empty:
+            raise ValueError("No joined phenotype and SV data was found.")
+        fig, primary_order = _create_grouped_bar_figure(
+            df,
+            axes,
+            metrics,
+            {axis: BAR_X_AXES[axis]["label"] for axis in axes},
+            {metric: BAR_Y_METRICS[metric]["label"] for metric in metrics},
+            "Count",
+        )
+        labels = [BAR_X_AXES[axis]["label"] for axis in axes]
+        grouping_text = f"Showing {len(primary_order)} {labels[0].lower()} groups."
+        if len(labels) > 1:
+            grouping_text += " Bars are grouped by " + ", ".join(labels[1:]) + "."
+        return html.Div([
+            html.P(
+                grouping_text,
+                style={"marginBottom": "15px"},
+            ),
+            dcc.Graph(figure=fig, style={"height": "600px", "marginBottom": "20px"}),
+        ])
     except Exception as exc:
-        return html.Div(str(exc), style={"color": "#A61B1B", "fontWeight": "600"}), html.Div()
-
-    if not rows:
-        return "Query returned 0 rows.", html.Div("No results.")
-
-    columns = list(rows[0].keys())
-    return (
-        f"Query returned {len(rows):,} row(s).",
-        dash_table.DataTable(
-            data=rows,
-            columns=[{"name": column, "id": column} for column in columns],
-            page_size=25,
-            sort_action="native",
-            filter_action="native",
-            style_table={"overflowX": "auto"},
-            style_cell={"textAlign": "left", "padding": "7px", "maxWidth": "360px"},
-            style_header={"backgroundColor": UCONN_LIGHT_BLUE, "fontWeight": "bold"},
-        ),
-    )
-
-
-@callback(
-    Output("database-query-download", "data"),
-    Input("database-query-download-button", "n_clicks"),
-    State("database-query-input", "value"),
-    prevent_initial_call=True,
-)
-def download_database_query(n_clicks, query):
-    if not n_clicks:
-        return no_update
-
-    try:
-        dataframe = load_full_query_dataframe(query)
-    except Exception:
-        return no_update
-
-    return dcc.send_data_frame(dataframe.to_csv, "database_query_results.csv", index=False)
+        return processing_error(exc)

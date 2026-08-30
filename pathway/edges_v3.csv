@@ -1,0 +1,8 @@
+Source,InteractionType,Target
+DNAJC5,facilitates,GO:0016192
+MKKS,facilitates,GO:0036158
+GO:0016192,modulates,GO:0001934
+GO:0036158,modulates,GO:0001934
+GO:0001934,mediates,GO:0007224
+GO:0007224,regulates,GO:0060021
+PRKCA,negatively_regulates,GO:0007224

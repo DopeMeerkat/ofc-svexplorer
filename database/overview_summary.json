@@ -1,0 +1,10 @@
+{
+  "family_count": 238,
+  "individual_count": 710,
+  "affected_case_count": 243,
+  "parent_count": 472,
+  "background_control_count": 2981,
+  "unique_phenotype_svs": 94246,
+  "annotated_gene_count": 27734,
+  "regulatory_element_count": 1621463
+}

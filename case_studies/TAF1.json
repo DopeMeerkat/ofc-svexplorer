@@ -1,0 +1,99 @@
+{
+  "title": "TAF1 - Intergenic insulator/CTCF disruption",
+  "genes": [
+    "TAF1",
+    "SNAI1",
+    "CDH1",
+    "PITX2"
+  ],
+  "sections": [
+    {
+      "heading": "Function",
+      "paragraphs": [
+        "TAF1 is responsible for converting 5-methylcytosine (5mC) to 5-hydroxymethylcytosine (5hmC), which is responsible for initiating active DNA demethylation [Ketchum et al., 2024]."
+      ]
+    },
+    {
+      "heading": "IGV",
+      "paragraphs": [
+        {
+          "text": "Our cohort analysis discovers the case(s) in rare frequency that TAF1 is disturbed as shown here. ",
+          "links": [
+            {
+              "label": "Open TAF1 in IGV",
+              "href": "/population?gene=TAF1"
+            }
+          ],
+          "suffix": "."
+        }
+      ]
+    },
+    {
+      "heading": "Literature",
+      "paragraphs": [
+        "When TAF1 is compromised, downstream signaling required for neural crest cell differentiation and pharyngeal cartilage formation is impaired, which can lead to craniofacial malformations like cleft lip and palate [Chen et al., 2023, Wang et al., 2024]."
+      ]
+    },
+    {
+      "heading": "Pathway",
+      "paragraphs": [
+        {
+          "text": "Our analysis discovers the case(s) in rare frequency that demonstrates the oligogenic interaction involving TAF1. ",
+          "links": [
+            {
+              "label": "Click here (TAF1, SNAI1, CDH1, PITX2)",
+              "href": "/pathway?genes=TAF1,SNAI1,CDH1,PITX2"
+            }
+          ],
+          "suffix": " to see the co-occurring SVs that are appearing with TAF1 in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TAF1-SNAIL4-BMP axis."
+        }
+      ]
+    },
+    {
+      "heading": "Supporting Data",
+      "paragraphs": [
+        "The evidence supporting the causality of the co-occurring SVs for ns-OFC has been curated. The summary is given below."
+      ],
+      "table": {
+        "columns": [
+          {
+            "name": "Evidence",
+            "id": "Evidence"
+          },
+          {
+            "name": "Finding",
+            "id": "Finding"
+          }
+        ],
+        "rows": [
+          {
+            "Evidence": "Overlapping with exons",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with enhancer candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with active candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with promoter candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Gene expression data (NCC E13.5)",
+            "Finding": "Not available"
+          }
+        ]
+      }
+    },
+    {
+      "heading": "References",
+      "paragraphs": [
+        "Crombie EM, Cleverley K, Timmers HTM, Fisher EMC. The roles of TAF1 in neuroscience and beyond. R Soc Open Sci. 2024 Sep 25;11(9):240790. doi: 10.1098/rsos.240790. PMID: 39323550; PMCID: PMC11423858."
+      ]
+    }
+  ]
+}

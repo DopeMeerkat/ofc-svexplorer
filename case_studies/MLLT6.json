@@ -1,0 +1,93 @@
+{
+  "title": "MLLT6 - Intergenic distal enhancer disruption",
+  "genes": [
+    "MLLT6",
+    "SNAI1",
+    "CDH1",
+    "PITX2"
+  ],
+  "sections": [
+    {
+      "heading": "Function",
+      "paragraphs": [
+        "MLLT6 encodes a nuclear protein containing PHD/zinc-finger domains and a leucine zipper, features commonly found in proteins involved in chromatin regulation and transcriptional control. Its functions include, histone and nucleosome binding, regulation of RNA polymerase II-mediated transcription, interaction with DOT1L (Dot1a), a histone methyltransferase that controls H3K79 methylation. MLLT6 can alter DOT1L localization and thereby influence gene expression, and regulation of epithelial sodium channel (ENaC) expression in kidney cells. [xxx., 2024]."
+      ]
+    },
+    {
+      "heading": "IGV",
+      "paragraphs": [
+        {
+          "text": "Our cohort analysis discovers the case(s) in rare frequency that MLLT6 is disturbed as shown here. ",
+          "links": [
+            {
+              "label": "Open MLLT6 in IGV",
+              "href": "/population?gene=MLLT6"
+            }
+          ],
+          "suffix": "."
+        }
+      ]
+    },
+    {
+      "heading": "Literature",
+      "paragraphs": [
+        "It is a cchromatin-associated transcriptional regulator that interacts with histone-modifying machinery, xxx  [xxx., 2023, xxx et al., 2024]."
+      ]
+    },
+    {
+      "heading": "Pathway",
+      "paragraphs": [
+        {
+          "text": "MLLT6 is a target of WNT/β-catenin signaling and can promote cell proliferation. ",
+          "links": [
+            {
+              "label": "Click here (MLLT6, DOT1L, TP63, IRF6, GRHL3)",
+              "href": "/pathway?genes=MLLT6,DOT1L,TP63,IRF6,GRHL3"
+            }
+          ],
+          "suffix": " to see xxx. It shows the involvement of developmental enhancers via the xxx TET-SNAIL4-BMP axis."
+        }
+      ]
+    },
+    {
+      "heading": "Supporting Data",
+      "paragraphs": [
+        "The evidence supporting the causality of the co-occurring SVs for ns-OFC has been curated. The summary is given below."
+      ],
+      "table": {
+        "columns": [
+          {
+            "name": "Evidence",
+            "id": "Evidence"
+          },
+          {
+            "name": "Finding",
+            "id": "Finding"
+          }
+        ],
+        "rows": [
+          {
+            "Evidence": "Overlapping with exons",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with enhancer candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with active candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Overlapping with promoter candidates",
+            "Finding": "No"
+          },
+          {
+            "Evidence": "Gene expression data (NCC E13.5)",
+            "Finding": "Detected (NCC E13.5 = 5.83)"
+          }
+        ]
+      }
+    }
+  ]
+}
