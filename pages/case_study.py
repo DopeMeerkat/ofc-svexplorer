@@ -5,6 +5,7 @@ Content is loaded from the committed local ``case_studies/`` folder managed by
 for when no case-study files are available.
 """
 
+import re
 import sqlite3
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode
@@ -242,24 +243,46 @@ def page_layout(search=None):
     ], style={**uconn_styles["content"], "maxWidth": "1100px", "margin": "30px auto"})
 
 
-def _paragraph_children(item):
+def _italicize_gene_names(text, genes):
+    """Render human gene symbols in text as italic spans."""
+    text = str(text or "")
+    symbols = sorted({str(gene).strip() for gene in genes or [] if str(gene).strip()}, key=len, reverse=True)
+    if not text or not symbols:
+        return [text]
+    pattern = re.compile(
+        r"(?<![A-Za-z0-9_-])(" + "|".join(re.escape(symbol) for symbol in symbols) + r")(?![A-Za-z0-9_-])",
+        re.IGNORECASE,
+    )
+    parts = []
+    position = 0
+    for match in pattern.finditer(text):
+        if match.start() > position:
+            parts.append(text[position:match.start()])
+        parts.append(html.I(match.group(0)))
+        position = match.end()
+    if position < len(text):
+        parts.append(text[position:])
+    return parts or [text]
+
+
+def _paragraph_children(item, genes=None):
     """Render a JSON paragraph item (string or {text, links, suffix})."""
     if isinstance(item, str):
-        return item
+        return _italicize_gene_names(item, genes)
     if isinstance(item, dict):
         parts = []
         if item.get("text"):
-            parts.append(item["text"])
+            parts.extend(_italicize_gene_names(item["text"], genes))
         for link in item.get("links", []) or []:
             parts.append(dcc.Link(
-                link.get("label", ""),
+                _italicize_gene_names(link.get("label", ""), genes),
                 href=link.get("href", ""),
                 style={"fontWeight": "700", "color": UCONN_NAVY},
             ))
         if item.get("suffix"):
-            parts.append(item["suffix"])
+            parts.extend(_italicize_gene_names(item["suffix"], genes))
         return parts
-    return str(item)
+    return _italicize_gene_names(str(item), genes)
 
 
 def _table_from_json(table):
@@ -283,11 +306,12 @@ def _table_from_json(table):
 
 def _render_from_json(data):
     section_children = []
+    genes = data.get("genes", []) or []
     for section in data.get("sections", []):
         children = []
         for item in section.get("paragraphs", []) or []:
             children.append(html.P(
-                _paragraph_children(item),
+                _paragraph_children(item, genes),
                 style={"lineHeight": "1.65", "margin": "0 0 10px 0"},
             ))
         table = section.get("table")

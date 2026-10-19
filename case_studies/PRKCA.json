@@ -2,17 +2,11 @@
   "title": "PRKCA - Intronic insulator/CTCF disruption",
   "genes": [
     "PRKCA",
-    "SNAI1",
-    "CDH1",
-    "PITX2"
+    "MKKS",
+    "DNAJC5",
+    "SHH"
   ],
   "sections": [
-    {
-      "heading": "Function",
-      "paragraphs": [
-        "PRKCA is responsible for converting 5-methylcytosine (5mC) to 5-hydroxymethylcytosine (5hmC), which is responsible for initiating active DNA demethylation [Ketchum et al., 2024]."
-      ]
-    },
     {
       "heading": "IGV",
       "paragraphs": [
@@ -31,22 +25,23 @@
     {
       "heading": "Literature",
       "paragraphs": [
-        "When PRKCA is compromised, downstream signaling required for neural crest cell differentiation and pharyngeal cartilage formation is impaired, which can lead to craniofacial malformations like cleft lip and palate [Chen et al., 2023, Wang et al., 2024]."
+        "PRKCA is essential for neural crest migration. Unlike structural cilia genes, PRKCA is highly active and structurally vital in migrating neural crest cells. Epithelial-to-mesenchymal transition (EMT) and directed cell migration require constant changes to the cell skeleton. PRKCA signaling regulates the focal adhesions and actin dynamics that allow cranial and trunk neural crest cells to break away and travel through the embryo (Patel et al. (2020))."
       ]
     },
     {
       "heading": "Pathway",
       "paragraphs": [
         {
-          "text": "Our analysis discovers the case(s) in rare frequency that demonstrates the oligogenic interaction involving PRKCA. ",
+          "text": "",
           "links": [
             {
-              "label": "Click here (PRKCA, SNAI1, CDH1, PITX2)",
-              "href": "/pathway?genes=PRKCA,SNAI1,CDH1,PITX2"
+              "label": "Click here",
+              "href": "/pathway?genes=PRKCA,MKKS,DNAJC5&networks=Baseline,CaseStudy6"
             }
           ],
-          "suffix": " to see the co-occurring SVs that are appearing with PRKCA in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TET-SNAIL4-BMP axis."
-        }
+          "suffix": " (PRKCA, MKKS, DNAJC5). Our SV analysis revealed a 100-bp deletion inside an intron of PRKCA that overlaps a known approximately 1-kb mesenchymal CTCF/insulator. It can be thought of as a small regulatory/chromatin-architecture SV affecting the PRKCA locus, rather than an intronic loss-of-function variant. PRKCA encodes protein kinase C, a signaling kinase involved in proliferation, differentiation, adhesion, and cytoskeletal regulation, processes that are central to craniofacial morphogenesis and orofacial cleft development (Ji et al. (2020)). PRKCA is depicted as a regulatory brake that modulates cellular responses to incoming signals, whereas MKKS and DNAJC5 act as structural components required for the assembly and function of the primary cilium, where PRKCA operates as a localized signaling kinase (Reddy (2005)). In addition, PRKCA is placed as a direct modulator of the SHH Signaling node (GO:0007224) (Reddy (2005), Mukhopadhyay and Rohatgi (2014))."
+        },
+        "It shows how intronic insulator/CTCF disruption of PRKCA could tip the balance between downstream regulatory activities of DNAJC5 and MKKS implicated in protein location to cilium and eventually lead to dysregulation of palate development."
       ]
     },
     {
@@ -88,6 +83,15 @@
           }
         ]
       }
+    },
+    {
+      "heading": "References",
+      "paragraphs": [
+        "Y. Ji, M. A. Garland, B. Sun, S. Zhang, K. Reynolds, M. McMahon, R. Rajakumar, M. S. Islam, Y. Liu, Y. Chen, and C. J. Zhou. Cellular and developmental basis of orofacial clefts. Birth Defects Research, 112(19):1558-1587, 2020. doi: 10.1002/bdr2.1768.",
+        "S. Mukhopadhyay and R. Rohatgi. G-protein-coupled receptors, Hedgehog signaling and primary cilia. Seminars in Cell & Developmental Biology, 33:63-72, 2014. doi: 10.1016/j.semcdb.2014.05.002.",
+        "H. Patel, J. Li, A. Herrero, J. Kroboth, A. Byron, A. V. Kriegsheim, V. Brunton, N. Carragher, T. Hurd, and M. Frame. Novel roles of PRK1 and PRK2 in cilia and cancer biology. Scientific Reports, 10(1):3902, 2020. doi: 10.1038/s41598-020-60604-3.",
+        "C. S. Reddy. Protein kinase C and chemical-induced abnormal palate development. Human & Experimental Toxicology, 24(4):203-214, 2005. doi: 10.1191/0960327105ht515oa."
+      ]
     }
   ]
 }

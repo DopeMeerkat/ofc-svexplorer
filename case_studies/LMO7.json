@@ -3,16 +3,9 @@
   "genes": [
     "LMO7",
     "SNAI1",
-    "CDH1",
-    "PITX2"
+    "CDH1"
   ],
   "sections": [
-    {
-      "heading": "Function",
-      "paragraphs": [
-        "LMO7 is responsible for converting 5-methylcytosine (5mC) to 5-hydroxymethylcytosine (5hmC), which is responsible for initiating active DNA demethylation [Ketchum et al., 2024]."
-      ]
-    },
     {
       "heading": "IGV",
       "paragraphs": [
@@ -31,22 +24,23 @@
     {
       "heading": "Literature",
       "paragraphs": [
-        "In several cancer models, loss or dysregulation of LMO7 can alter cell morphology, migration, invasion, and EMT-associated programs [Zhen et al., 2022, Zeng et al., 2024, Liu et al., 2021]."
+        "In several cancer models, loss or dysregulation of LMO7 can alter cell morphology, migration, invasion, and EMT-associated programs (Zhen et al. (2022); Zeng et al. (2024); Liu et al. (2021)). In addition, LMO7 has been implicated in the organization and remodeling of embryonic epithelial tissues through its role in apical junctional complexes and actomyosin-dependent epithelial morphogenesis (Matsuda et al. (2022))."
       ]
     },
     {
       "heading": "Pathway",
       "paragraphs": [
         {
-          "text": "Our analysis discovers the case(s) in rare frequency that demonstrates the oligogenic interaction involving LMO7. ",
+          "text": "",
           "links": [
             {
-              "label": "Click here (LMO7, GO:0001837, CDH1, PITX2)",
-              "href": "/pathway?genes=LMO7,GO:0001837,CDH1,PITX2"
+              "label": "Click here",
+              "href": "/pathway?genes=LMO7,SNAI1,CDH1"
             }
           ],
-          "suffix": " to see the co-occurring SVs that are appearing with LMO7 in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TET-SNAIL4-BMP axis."
-        }
+          "suffix": " (LMO7, SNAI1, CDH1). LMO7 is positioned as a contributor to epithelial cell-cell adhesion. Adherens junctions depend on both cell-cell recognition/adhesion and mechanical coupling to the actin cytoskeleton, with LMO7 contributing primarily to the latter. Through interactions with afadin and α-actinin, LMO7 helps organize the actin network associated with adherens junctions, thereby supporting the stabilization and maintenance of epithelial cell-cell contacts."
+        },
+        "The extended pathway diagram shows how LMO7 is placed. It supports Epithelial Cell-Cell Adhesion leading to EMT but in parallel to the known regulatory path SNAI1-CDH1-Epithelial Cell-Cell Adhesion-Epithelial-Mesenchymal Transition (EMT)."
       ]
     },
     {
@@ -92,9 +86,10 @@
     {
       "heading": "References",
       "paragraphs": [
-        "Zhen YY, Wu CH, Chen HC, Chang EE, Lee JJ, Chen WY, Chang JM, Tseng PY, Wang YF, Hung CC. Coordination of LMO7 with FAK Signaling Sustains Epithelial Integrity in Renal Epithelia Exposed to Osmotic Pressure. Cells. 2022 Nov 28;11(23):3805. doi: 10.3390/cells11233805. PMID: 36497072; PMCID: PMC9741450.",
-        "Zeng Q, Jiang T, Wang J. Role of LMO7 in cancer (Review). Oncol Rep. 2024 Sep;52(3):117. doi: 10.3892/or.2024.8776. Epub 2024 Jul 12. PMID: 38994754; PMCID: PMC11267500.",
-        "Liu X, Yuan H, Zhou J, Wang Q, Qi X, Bernal C, Avella D, Kaifi JT, Kimchi ET, Timothy P, Cheng K, Miao Y, Jiang K, Li G. LMO7 as an Unrecognized Factor Promoting Pancreatic Cancer Progression and Metastasis. Front Cell Dev Biol. 2021 Mar 8;9:647387. doi: 10.3389/fcell.2021.647387. PMID: 33763427; PMCID: PMC7982467."
+        "X. Liu, H. Yuan, J. Zhou, Q. Wang, X. Qi, C. Bernal, D. Avella, J. T. Kaifi, E. T. Kimchi, P. Timothy, K. Cheng, Y. Miao, K. Jiang, and G. Li. LMO7 as an unrecognized factor promoting pancreatic cancer progression and metastasis. Frontiers in Cell and Developmental Biology, 9:647387, 2021. doi: 10.3389/fcell.2021.647387.",
+        "M. Matsuda, C. W. Chu, and S. Y. Sokol. Lmo7 recruits myosin II heavy chain to regulate actomyosin contractility and apical domain size in Xenopus ectoderm. Development, 149(10):dev200236, 2022. doi: 10.1242/dev.200236.",
+        "Q. Zeng, T. Jiang, and J. Wang. Role of LMO7 in cancer (review). Oncology Reports, 52(3):117, 2024. doi: 10.3892/or.2024.8776.",
+        "Y. Y. Zhen, C. H. Wu, H. C. Chen, E. E. Chang, J. J. Lee, W. Y. Chen, J. M. Chang, P. Y. Tseng, Y. F. Wang, and C. C. Hung. Coordination of LMO7 with FAK signaling sustains epithelial integrity in renal epithelia exposed to osmotic pressure. Cells, 11(23):3805, 2022. doi: 10.3390/cells11233805."
       ]
     }
   ]

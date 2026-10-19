@@ -2,17 +2,13 @@
   "title": "KDM8 - Promoter/TSS disruption",
   "genes": [
     "KDM8",
-    "SNAI1",
-    "CDH1",
-    "PITX2"
+    "JMJD5",
+    "DOT1L",
+    "TP63",
+    "IRF6",
+    "GRHL3"
   ],
   "sections": [
-    {
-      "heading": "Function",
-      "paragraphs": [
-        "KDM8 is an epigenetic/chromatin regulator influencing chromatin state, cell proliferation, DNA damage responses, and microtubule/cytoskeletal organization. It is not an established craniofacial developmental gene. Its promoter/TSS region is found to overlap with DEL SV (chr17:66561968-66562967, size:350 bp, freq:0.006).  The portal’s Dashboard contrast distribution of two cases.  It is a 1 kb DEL SV (chr17:66561968-66562967) overlapping with intron No. 3 of the gene.  [Ketchum et al., 2024]."
-      ]
-    },
     {
       "heading": "IGV",
       "paragraphs": [
@@ -31,22 +27,23 @@
     {
       "heading": "Literature",
       "paragraphs": [
-        "When KDM8 is compromised, downstream signaling required for neural crest cell differentiation and pharyngeal cartilage formation is impaired, which can lead to craniofacial malformations like cleft lip and palate [Chen et al., 2023, Wang et al., 2024]."
+        "KDM8 (JMJD5) is a chromatin-associated regulator implicated in control of chromatin state, cell proliferation, DNA damage responses, and cytoskeletal organization. Although it is not currently recognized as an established craniofacial developmental gene, its molecular functions could influence pathways relevant to development. KDM8 contains a JmjC-domain oxygenase and was originally reported to demethylate H3K36me2, a histone modification associated with transcriptional regulation. Through modulation of H3K36 methylation and chromatin-associated protein recruitment, KDM8 may influence the accessibility and expression of specific gene loci (Hsia et al. (2010), Ahmed et al. (2023))."
       ]
     },
     {
       "heading": "Pathway",
       "paragraphs": [
         {
-          "text": "Being an epigenetic regulator belonging to the JmjC-domain protein family which regulates α-tubulin acetylation and microtubule stability, it can facilitate cytoskeletal remodeling associated with epithelial-to-mesenchymal transition. The pathway view illustrates how this DEL SV is mapped in EMT (i.e., Microtubules → cell polarity/cell migration → EMT-like behaviors). ",
+          "text": "",
           "links": [
             {
-              "label": "Click here (KDM8, SNAI1, CDH1, PITX2)",
-              "href": "/pathway?genes=KDM8,SNAI1,CDH1,PITX2"
+              "label": "Click here",
+              "href": "/pathway?genes=KDM8,DOT1L,TP63,IRF6,GRHL3"
             }
           ],
-          "suffix": " to see the co-occurring SVs that are appearing with KDM8 in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TET-SNAIL4-BMP axis."
-        }
+          "suffix": " (KDM8, DOT1L, TP63, IRF6, GRHL3). Our analysis found KDM8's promoter/TSS region overlapping with a deletion SV. The pathway diagram depicts that KDM8 and DOT1L function as opposing biochemical forces on the epigenome, serving as an epigenetic eraser (demethylase) and an epigenetic writer (methyltransferase), respectively. Beyond modifying chromatin, KDM8 actively enters the cytoplasm or spindle apparatus to alter non-histone structures. It directly controls α-tubulin acetylation, transforming physical microtubule architecture to assist the morphological softening and migration necessary for EMT. In contrast, DOT1L recognizes H3K79 within assembled nucleosomes and relies on extensive nucleosome interactions to position and methylate its target residue. While both drive the cellular plastic changes of the epithelial-to-mesenchymal transition (EMT), they differ entirely in their catalytic mechanisms, targeted histone marks, and non-histone structural actions."
+        },
+        "The pathway diagram highlights the complementary epigenetic regulatory functions of DOT1L and KDM8, with DOT1L mediating H3K79 methylation and KDM8 contributing to regulation of H3K36 methylation. Disruption of the KDM8 promoter/TSS region is hypothesized to alter chromatin regulation and downstream transcriptional programs, potentially affecting palatogenesis through pathways that converge on the established TP63-IRF6-GRHL3 regulatory axis. This figure shows that KDM8 is detected in NCC E13.5."
       ]
     },
     {
@@ -88,6 +85,13 @@
           }
         ]
       }
+    },
+    {
+      "heading": "References",
+      "paragraphs": [
+        "A. Ahmed, J. N. Syed, L. Chi, Y. Wang, C. Perez-Romero, D. Lee, E. Kocaqi, A. Caballero, J. Yang, Q. Escalante-Covarrubias, A. Ishimura, T. Suzuki, L. Aguilar-Arnal, G. B. Gonzales, K. H. Kim, and P. Delgado-Olguín. KDM8 epigenetically controls cardiac metabolism to prevent initiation of dilated cardiomyopathy. Nature Cardiovascular Research, 2(2):174-191, 2023. doi: 10.1038/s44161-023-00214-0.",
+        "D. A. Hsia, C. G. Tepper, M. R. Pochampalli, et al. KDM8, a H3K36me2 histone demethylase that acts in the cyclin A1 coding region to regulate cancer cell proliferation. Proceedings of the National Academy of Sciences of the United States of America, 107(21):9671-9676, 2010. doi: 10.1073/pnas.1000401107."
+      ]
     }
   ]
 }

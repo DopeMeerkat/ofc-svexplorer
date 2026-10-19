@@ -2,17 +2,11 @@
   "title": "TAF1 - Intergenic insulator/CTCF disruption",
   "genes": [
     "TAF1",
-    "SNAI1",
-    "CDH1",
-    "PITX2"
+    "TP63",
+    "IRF6",
+    "GRHL3"
   ],
   "sections": [
-    {
-      "heading": "Function",
-      "paragraphs": [
-        "TAF1 is responsible for converting 5-methylcytosine (5mC) to 5-hydroxymethylcytosine (5hmC), which is responsible for initiating active DNA demethylation [Ketchum et al., 2024]."
-      ]
-    },
     {
       "heading": "IGV",
       "paragraphs": [
@@ -31,22 +25,23 @@
     {
       "heading": "Literature",
       "paragraphs": [
-        "When TAF1 is compromised, downstream signaling required for neural crest cell differentiation and pharyngeal cartilage formation is impaired, which can lead to craniofacial malformations like cleft lip and palate [Chen et al., 2023, Wang et al., 2024]."
+        "Animal models show that disrupting the TAF complex leads directly to craniofacial hypoplasia. A shift in TAF1 expression in cranial neural crest cells would alter downstream skeletal patterning, mimicking phenotypes seen in TAF1 intellectual disability syndromes, such as distinct facial dysmorphism. Migrating neural crest cells require precision control of their transcriptomes to successfully navigate the embryo. Altered TAF1 dosage shifts the expression profiles of core genes, potentially stalling cell migration (Leid et al. (2023), Hurst et al. (2018), Gudmundsson et al. (2019))."
       ]
     },
     {
       "heading": "Pathway",
       "paragraphs": [
         {
-          "text": "Our analysis discovers the case(s) in rare frequency that demonstrates the oligogenic interaction involving TAF1. ",
+          "text": "",
           "links": [
             {
-              "label": "Click here (TAF1, SNAI1, CDH1, PITX2)",
-              "href": "/pathway?genes=TAF1,SNAI1,CDH1,PITX2"
+              "label": "Click here",
+              "href": "/pathway?genes=TAF1,TP63,IRF6,GRHL3"
             }
           ],
-          "suffix": " to see the co-occurring SVs that are appearing with TAF1 in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TAF1-SNAIL4-BMP axis."
-        }
+          "suffix": " (TAF1, TP63, IRF6, GRHL3). TAF1 is the largest subunit of the TFIID complex, serving as a major scaffold and regulatory component within TFIID. Our SV analysis discovered a 100-bp deletion structural variant disrupting an insulator 13.8 kb upstream of TAF1 as potentially breaking a non-coding structural component like an insulator changes the physical 3D architecture of the DNA. TAF1 is linked to TP63 with the relationship 'putatively regulates' based on these known facts: TP63 is a transcription factor controlling epithelial and periderm gene programs; TP63 target genes must be transcribed through the general RNA polymerase II machinery; TFIID, containing TAF1, is a key component of that machinery. Thus, altered TAF1 function could impair expression of TP63-regulated genes."
+        },
+        "Our pathway extension introduces the relationship 'putatively regulates' to distinguish predicted interactions from established ones. In this example, TAF1 is predicted to regulate TP63, whereas the downstream TP63-IRF6-GRHL3 regulatory axis is already established in the baseline pathway diagram."
       ]
     },
     {
@@ -92,7 +87,9 @@
     {
       "heading": "References",
       "paragraphs": [
-        "Crombie EM, Cleverley K, Timmers HTM, Fisher EMC. The roles of TAF1 in neuroscience and beyond. R Soc Open Sci. 2024 Sep 25;11(9):240790. doi: 10.1098/rsos.240790. PMID: 39323550; PMCID: PMC11423858."
+        "S. Gudmundsson, M. Wilbe, B. Filipek-Górniok, A. M. Molin, S. Ekvall, J. Johansson, A. Allalou, H. Gylje, V. M. Kalscheuer, J. Ledin, G. Annerén, and M. L. Bondeson. TAF1, associated with intellectual disability in humans, is essential for embryogenesis and regulates neurodevelopmental processes in zebrafish. Scientific Reports, 9(1):10730, 2019. doi: 10.1038/s41598-019-46632-8.",
+        "S. E. Hurst, E. Liktor-Busa, A. Moutal, S. Parker, S. Rice, S. Szelinger, G. Senner, M. F. Hammer, L. Johnstone, K. Ramsey, V. Narayanan, S. Perez-Miller, M. Khanna, H. Dahlin, K. Lewis, D. Craig, E. H. Wang, R. Khanna, and M. A. Nelson. A novel variant in TAF1 affects gene expression and is associated with X-linked TAF1 intellectual disability syndrome. Neuronal Signaling, 2(3):NS20180141, 2018. doi: 10.1042/NS20180141.",
+        "J. Leid, R. Gray, P. Rakita, A. L. Koenig, R. Tripathy, J. A. J. Fitzpatrick, C. Kaufman, L. Solnica-Krezel, and K. J. Lavine. Deletion of taf1 and taf5 in zebrafish capitulate cardiac and craniofacial abnormalities associated with TAFopathies through perturbations in metabolism. Biology Open, 12(7):bio059905, 2023. doi: 10.1242/bio.059905."
       ]
     }
   ]

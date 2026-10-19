@@ -68,6 +68,17 @@ def _default_visible_networks() -> list[str]:
     return [choice["id"] for choice in _version_choices() if choice["label"] != "Case Study 6"]
 
 
+def _visible_networks_from_search(search: str | None) -> list[str]:
+    """Return URL-requested network IDs, falling back to normal defaults."""
+    query = parse_qs((search or "").lstrip("?"))
+    requested = []
+    for value in query.get("networks", []) + query.get("network", []):
+        requested.extend(item.strip() for item in value.split(",") if item.strip())
+    available = {choice["id"] for choice in _version_choices()}
+    selected = [version_id for version_id in requested if version_id in available]
+    return selected or _default_visible_networks()
+
+
 def _network(version_id: str | None = None) -> dict:
     version_id = version_id or _default_version_id()
     if version_id not in _NETWORK_CACHE:
@@ -242,6 +253,7 @@ def page_layout(search=None):
     initial_genes = _genes_from_search(search)
     initial_gene_text = ", ".join(sorted(initial_genes)) if initial_genes else "TP63, IRF6, GRHL3, HDAC3, EZH2"
     versions = _version_choices()
+    initial_visible_networks = _visible_networks_from_search(search)
 
     return html.Div(
         [
@@ -294,7 +306,7 @@ def page_layout(search=None):
                     dcc.Checklist(
                         id="pathway-network-display",
                         options=[{"label": choice["label"], "value": choice["id"]} for choice in versions],
-                        value=_default_visible_networks(),
+                        value=initial_visible_networks,
                         inline=True,
                         labelStyle={"marginRight": "12px", "cursor": "pointer"},
                         inputStyle={"marginRight": "5px"},
@@ -303,7 +315,7 @@ def page_layout(search=None):
                 style={"display": "flex", "alignItems": "center", "marginBottom": "14px", "flexWrap": "wrap", "gap": "6px"},
             ),
             html.Div(
-                _network_panels(versions),
+                _network_panels(versions, selected_versions=initial_visible_networks),
                 id="pathway-network-panels",
                 style={"display": "flex", "gap": "18px", "flexWrap": "wrap", "alignItems": "flex-start"},
             ),

@@ -2,17 +2,13 @@
   "title": "TET3 - Coding exon disruption",
   "genes": [
     "TET3",
+    "TET2",
+    "SALL4",
     "SNAI1",
     "CDH1",
     "PITX2"
   ],
   "sections": [
-    {
-      "heading": "Function",
-      "paragraphs": [
-        "TET3 is responsible for converting 5-methylcytosine (5mC) to 5-hydroxymethylcytosine (5hmC), which is responsible for initiating active DNA demethylation [Ketchum et al., 2024]."
-      ]
-    },
     {
       "heading": "IGV",
       "paragraphs": [
@@ -31,28 +27,23 @@
     {
       "heading": "Literature",
       "paragraphs": [
-        "When TET3 is compromised, downstream signaling required for neural crest cell differentiation and pharyngeal cartilage formation is impaired, which can lead to craniofacial malformations like cleft lip and palate [Chen et al., 2023, Wang et al., 2024]."
+        "TET3 is responsible for converting 5-methylcytosine (5mC) to 5-hydroxymethylcytosine (5hmC), which is responsible for initiating active DNA demethylation (Ketchum et al. (2024)). When TET3 is compromised, downstream signaling required for neural crest cell differentiation and pharyngeal cartilage formation is impaired, which can lead to craniofacial malformations like cleft lip and palate. It has been reported that experimental loss of TET2/3 disrupts BMP-dependent chondrocyte differentiation and pharyngeal cartilage formation (Wang et al. (2024)), suggesting that impaired TET3 function could contribute to craniofacial malformations."
       ]
     },
     {
       "heading": "Pathway",
       "paragraphs": [
         {
-          "text": "Our analysis discovers the case(s) in rare frequency that demonstrates the oligogenic interaction involving TET3. ",
+          "text": "",
           "links": [
             {
-              "label": "Click here (TET3, SNAI1, CDH1, PITX2)",
+              "label": "Click here",
               "href": "/pathway?genes=TET3,SNAI1,CDH1,PITX2"
             }
           ],
-          "suffix": " to see the co-occurring SVs that are appearing with TET3 in our curated palatogenesis pathway diagram. It shows the involvement of developmental enhancers via the TET-SNAIL4-BMP axis."
-        }
-      ]
-    },
-    {
-      "heading": "EMT",
-      "paragraphs": [
-        "It is related to EMT, indirectly but convincingly. TET proteins are frequently found upstream of EMT programs because EMT requires large-scale epigenetic reprogramming. TET-mediated DNA demethylation can regulate expression of genes involved in: cell fate transitions, epithelial identity, migration, differentiation. It may not be an EMT transcription factor, but it can be labelled as EMT-enabling epigenetic regulator."
+          "suffix": " (TET3, SNAI1, CDH1, PITX2). Our analysis discovers the case(s) in rare frequency that demonstrates the oligogenic interaction involving TET3. The pathway diagram shows which other well-established genes (SNAI1, CDH1, PITX2) appear with TET3 in our curated palatogenesis pathway diagram. The branches of the diagram interconnecting the selected genes show the involvement of developmental enhancers via the TET-SALL4-BMP axis."
+        },
+        "TET proteins are frequently found upstream of EMT programs because EMT requires large-scale epigenetic reprogramming. TET-mediated DNA demethylation can regulate expression of genes involved in cell fate transitions, epithelial identity, migration, and differentiation. It may not be an EMT transcription factor, but it can be labelled as an EMT-enabling epigenetic regulator. Noticeable in the figure is that this gene is highly expressed in NCC E13.5."
       ]
     },
     {
@@ -98,7 +89,8 @@
     {
       "heading": "References",
       "paragraphs": [
-        "Ketchum HC, Suzuki M, Dawlaty MM. Catalytic-dependent and -independent roles of TET3 in the regulation of specific genetic programs during neuroectoderm specification. Commun Biol. 2024 Apr 5;7(1):415. doi: 10.1038/s42003-024-06120-w. PMID: 38580843; PMCID: PMC10997653."
+        "H. C. Ketchum, M. Suzuki, and M. M. Dawlaty. Catalytic-dependent and -independent roles of TET3 in the regulation of specific genetic programs during neuroectoderm specification. Communications Biology, 7(1):415, 2024. doi: 10.1038/s42003-024-06120-w.",
+        "W. Wang, N. Yang, L. Wang, Y. Zhu, X. Chu, W. Xu, Y. Li, Y. Xu, L. Gao, B. Zhang, G. Zhang, Q. Sun, W. Wang, Q. Wang, W. Zhang, and D. Chen. The TET-Sall4-BMP regulatory axis controls craniofacial cartilage development. Cell Reports, 43(3):113873, 2024. doi: 10.1016/j.celrep.2024.113873."
       ]
     }
   ]

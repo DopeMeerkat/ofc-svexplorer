@@ -2,7 +2,7 @@
 Pathway network (edges/nodes) loader backed by a local rclone cache.
 
 Each network version is a subdirectory of the configured OneDrive pathway
-folder (e.g. ``Baseline``, ``Extended1``, ``CaseStudy6``). Within a directory the first CSV
+folder (e.g. ``Baseline``, ``Extended2``, ``CaseStudy6``). Within a directory the first CSV
 whose filename starts with ``edges`` is used as the edge table and the first
 starting with ``nodes`` as the node table. The cache mirrors the remote via
 ``rclone sync``.
@@ -16,7 +16,7 @@ Configuration (os.environ or the gitignored ``rclone/.env`` file):
 
 If the cache is not configured or populated yet, a built-in fallback list is
 returned based on the bundled ``pathway/*.csv`` files so the page still
-renders Baseline/Extended/Case Study 6 without OneDrive access.
+renders Baseline/Extended2/Case Study 6 without OneDrive access.
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ PATHWAY_DIR = PROJECT_ROOT / "pathway"
 
 _BUILTIN_NETWORKS = (
     ("Baseline", "Baseline", "edges_e.csv", "nodes_e.csv"),
+    ("Extended2", "Extended", "edges_v2.csv", "nodes_v2.csv"),
     ("Extended1", "Extended", "edges_v1.csv", "nodes_v1.csv"),
     ("CaseStudy6", "Case Study 6", "edges_v3.csv", "nodes_v3.csv"),
 )

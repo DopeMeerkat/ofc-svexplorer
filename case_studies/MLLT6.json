@@ -2,17 +2,15 @@
   "title": "MLLT6 - Intergenic distal enhancer disruption",
   "genes": [
     "MLLT6",
-    "SNAI1",
-    "CDH1",
-    "PITX2"
+    "DOT1L",
+    "DOT1A",
+    "KMT2D",
+    "TP63",
+    "IRF6",
+    "GRHL3",
+    "AF9"
   ],
   "sections": [
-    {
-      "heading": "Function",
-      "paragraphs": [
-        "MLLT6 encodes a nuclear protein containing PHD/zinc-finger domains and a leucine zipper, features commonly found in proteins involved in chromatin regulation and transcriptional control. Its functions include, histone and nucleosome binding, regulation of RNA polymerase II-mediated transcription, interaction with DOT1L (Dot1a), a histone methyltransferase that controls H3K79 methylation. MLLT6 can alter DOT1L localization and thereby influence gene expression, and regulation of epithelial sodium channel (ENaC) expression in kidney cells. [xxx., 2024]."
-      ]
-    },
     {
       "heading": "IGV",
       "paragraphs": [
@@ -31,22 +29,23 @@
     {
       "heading": "Literature",
       "paragraphs": [
-        "It is a cchromatin-associated transcriptional regulator that interacts with histone-modifying machinery, xxx  [xxx., 2023, xxx et al., 2024]."
+        "MLLT6 is a chromatin-associated transcriptional regulator that interacts with histone-modifying machinery. One of its best-characterized functions is interaction with the DOT1L/DOT1A H3K79 methyltransferase complex, where MLLT6 competes with AF9 and can alter DOT1L localization and H3K79 methylation levels (Reisenauer et al. (2009))."
       ]
     },
     {
       "heading": "Pathway",
       "paragraphs": [
         {
-          "text": "MLLT6 is a target of WNT/β-catenin signaling and can promote cell proliferation. ",
+          "text": "",
           "links": [
             {
-              "label": "Click here (MLLT6, DOT1L, TP63, IRF6, GRHL3)",
-              "href": "/pathway?genes=MLLT6,DOT1L,TP63,IRF6,GRHL3"
+              "label": "Click here",
+              "href": "/pathway?genes=MLLT6,DOT1L,KMT2D,TP63,IRF6,GRHL3"
             }
           ],
-          "suffix": " to see xxx. It shows the involvement of developmental enhancers via the xxx TET-SNAIL4-BMP axis."
-        }
+          "suffix": " (MLLT6, DOT1L, KMT2D, TP63, IRF6, GRHL3). MLLT6 is positioned upstream of DOT1L as a chromatin-associated regulator that may facilitate DOT1L-dependent H3K79 methylation. This epigenetic module is hypothesized to support transcriptional programs required for epithelial differentiation and integrity, thereby influencing developmental pathways that converge on the TP63-IRF6-GRHL3 network during palatogenesis."
+        },
+        "The pathway proposes that both the KMT2D and MLLT6-DOT1L modules act as positive regulators of the TP63 developmental program. While KMT2D contributes enhancer activation and DOT1L contributes H3K79 methylation-associated transcriptional activity, both pathways are predicted to converge on maintenance of TP63-dependent epithelial differentiation, including the downstream IRF6-GRHL3 axis."
       ]
     },
     {
@@ -88,6 +87,12 @@
           }
         ]
       }
+    },
+    {
+      "heading": "References",
+      "paragraphs": [
+        "M. R. Reisenauer, M. Anderson, L. Huang, Z. Zhang, Q. Zhou, B. C. Kone, A. P. Morris, G. D. Lesage, S. E. Dryer, and W. Zhang. AF17 competes with AF9 for binding to Dot1a to up-regulate transcription of epithelial Na+ channel alpha. Journal of Biological Chemistry, 284(51):35659-35669, 2009. doi: 10.1074/jbc.M109.038448."
+      ]
     }
   ]
 }
